@@ -65,13 +65,12 @@ Título: "Dashboard financeiro — Em tempo real". Sub-abas: **Dashboards** e **
 ## 3) Analistas (`analysts`)
 Título: "Desempenho de Analistas". Sub-abas: **Técnicos**, **Relatórios**, **Mapas**.
 
-- **Técnicos**: dashboard de desempenho por técnico (a mapear — métricas de atendimento, tarefas, tempos).
-- **Relatórios**: seletor (dropdown) com 3 relatórios:
-  1. Relatório de Tarefas por Técnico
-  2. Relatório de Deslocamentos por Técnico
-  3. Relatório de Horas fora de expediente de Técnicos por Chamados
-  (cada um com filtros + provável export PDF/CSV — a mapear)
-- **Mapas**: visualização em mapa (a mapear — provável geolocalização de deslocamentos/técnicos).
+- **Técnicos** ("Performance de técnicos"): filtro `tecnichanFilter[]` (multi) + um card por técnico com métricas: **Horas trabalhadas** (soma `actiontime` das tarefas), **Pontos**, **Satisfação**, **Chamados atendidos**, **Incidentes** (+%), **Requisições** (+%).
+- **Relatórios**: seletor `report` (IDs 57/58/59). Filtros de cada: intervalo de datas (`start_date`/`end_date`), `technician_id`, `ticket_id`.
+  1. **57 — Tarefas por Técnico**: lista de `glpi_tickettasks`. Colunas: Chamado, Autor, Entidade, Data de criação, Categoria, Descrição, Grupo, Técnico, Início, Fim, Duração. Totais: nº de tarefas, tempo total.
+  2. **58 — Deslocamentos por Técnico**: Distância (Km) + Tempo total. **Fonte não-nativa do GLPI** (Verdana) — sem dados.
+  3. **59 — Horas fora de expediente por chamado**: colunas Técnico, ID do chamado, Tempo total de tarefas no chamado, Tempo de tarefas fora do expediente, Entidade. Expediente observado termina **18:00** (ex.: tarefa 15:39→18:39 = 00:39:31 fora). Usa jornada Seg–Sex 08:00–18:00.
+- **Mapas** ("Posicionamento geográfico de técnicos"): mapa **Leaflet** com posição dos técnicos. **Fonte de geolocalização não-nativa** (Verdana).
 
 ---
 

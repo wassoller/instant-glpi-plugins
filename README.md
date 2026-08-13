@@ -45,7 +45,7 @@ docs/recon/          # notas de engenharia reversa (modelo de dados, KPIs, telas
 - [x] **Fase 3** — `managedservices`: Financeiro (todas as dimensões, historização). *Validado em GLPI 10.0.26.*
 - [x] **Fase 4** — `servicereports`: landing + Central de Serviços (KPIs + deep-links). *Validado em GLPI 10.0.26.*
 - [x] **Fase 5** — `servicereports`: Gestão Financeira (lê `managedservices`) + gráficos. *Validado em GLPI 10.0.26.*
-- [ ] **Fase 6** — `servicereports`: Analistas (Técnicos, Relatórios, Mapas).
+- [x] **Fase 6** — `servicereports`: Analistas (Técnicos, Relatórios, Mapas). *Validado em GLPI 10.0.26. Deslocamentos e Mapas dependem de fontes de dados não-nativas (Verdana) — estrutura + nota.*
 - [ ] **Fase 7** — i18n (pt_BR), polish, testes de instalação na VM.
 
 Ver [docs/recon](docs/recon) para o mapeamento detalhado das telas e do modelo de dados.

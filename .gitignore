@@ -1,0 +1,17 @@
+# Ambiente de teste local do GLPI
+/.testenv/
+/glpi-test/
+/glpi-*/
+*.sql.gz
+
+# Logs e temporários
+*.log
+.DS_Store
+Thumbs.db
+
+# Dependências
+/vendor/
+**/node_modules/
+
+# Config sensível de teste
+*.local.php

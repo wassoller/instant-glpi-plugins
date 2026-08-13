@@ -29,6 +29,12 @@ function plugin_init_managedservices()
     Plugin::registerClass('PluginManagedservicesProfile', ['addtabon' => ['Profile']]);
     Plugin::registerClass('PluginManagedservicesManagedservice');
 
+    // Abas do serviço gerenciado
+    Plugin::registerClass('PluginManagedservicesManager', ['addtabon' => 'PluginManagedservicesManagedservice']);
+    Plugin::registerClass('PluginManagedservicesCoveredasset', ['addtabon' => 'PluginManagedservicesManagedservice']);
+    Plugin::registerClass('PluginManagedservicesComposition', ['addtabon' => 'PluginManagedservicesManagedservice']);
+    Plugin::registerClass('PluginManagedservicesNmsconfig', ['addtabon' => 'PluginManagedservicesManagedservice']);
+
     // Entrada de menu em "Ativos" (assets)
     if (Session::getLoginUserID()
         && class_exists('PluginManagedservicesManagedservice')

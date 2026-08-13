@@ -33,6 +33,32 @@ class PluginManagedservicesManagedservice extends CommonDBTM
     }
 
     /**
+     * Classes de ativo que podem ser cobertas / compor um serviço.
+     *
+     * @return array<int,string> lista de itemtypes
+     */
+    public static function getAssetItemtypes()
+    {
+        return [
+            'Computer',
+            'Monitor',
+            'NetworkEquipment',
+            'Peripheral',
+            'Printer',
+            'Phone',
+            'Rack',
+            'Enclosure',
+            'PDU',
+            'PassiveDCEquipment',
+            'Cable',
+            'CartridgeItem',
+            'ConsumableItem',
+            'Software',
+            'PluginManagedservicesManagedservice',
+        ];
+    }
+
+    /**
      * Ícone/menu em "Ativos". Habilita busca e criação a partir do menu.
      */
     public static function getMenuContent()

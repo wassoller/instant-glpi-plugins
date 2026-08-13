@@ -40,8 +40,8 @@ docs/recon/          # notas de engenharia reversa (modelo de dados, KPIs, telas
 
 ## Roadmap (fases)
 - [x] **Fase 0** — Scaffolding dos 2 plugins (estrutura GLPI 10, install/uninstall, menus).
-- [ ] **Fase 1** — `managedservices`: objeto principal (CRUD + busca + menu).
-- [ ] **Fase 2** — `managedservices`: abas Gerência / Cobertos / Composição / NMS.
+- [x] **Fase 1** — `managedservices`: objeto principal (CRUD + busca + menu). *Validado em GLPI 10.0.26.*
+- [x] **Fase 2** — `managedservices`: abas Gerência / Cobertos / Composição / NMS. *Validado em GLPI 10.0.26.*
 - [ ] **Fase 3** — `managedservices`: Financeiro (todas as dimensões, historização).
 - [ ] **Fase 4** — `servicereports`: landing + Central de Serviços (KPIs + deep-links).
 - [ ] **Fase 5** — `servicereports`: Gestão Financeira (lê `managedservices`) + gráficos.

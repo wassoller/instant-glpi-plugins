@@ -15,7 +15,7 @@ class PluginManagedservicesProfile extends Profile
     /** Nome do direito registrado em glpi_profilerights. */
     public const RIGHT = 'plugin_managedservices';
 
-    public static function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
+    public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
     {
         if ($item instanceof Profile
             && $item->getField('id')

@@ -24,11 +24,11 @@ foreach (PluginServicereportsMenu::getBlocks() as $key => $block) {
     echo "<div class='col'>";
     echo "<a class='text-decoration-none text-reset' href='" . Html::cleanInputText($url) . "'>";
     echo "<div class='card h-100 shadow-sm'>";
-    echo "<div class='card-body d-flex align-items-center'>";
-    echo "<i class='" . $block['icon'] . " me-3' style='font-size:2rem'></i>";
-    echo "<div>";
+    echo "<div class='card-body d-flex align-items-center gap-3'>";
+    echo "<i class='" . $block['icon'] . " flex-shrink-0' style='font-size:2rem'></i>";
+    echo "<div class='flex-grow-1' style='min-width:0'>";
     echo "<div class='h5 mb-1'>" . $block['title'] . "</div>";
-    echo "<div class='text-muted small'>" . $block['desc'] . "</div>";
+    echo "<div class='text-muted' style='font-size:.85rem'>" . $block['desc'] . "</div>";
     echo "</div>";
     echo "</div></div></a></div>";
 }

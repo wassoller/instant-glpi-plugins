@@ -59,6 +59,29 @@ class PluginManagedservicesManagedservice extends CommonDBTM
     }
 
     /**
+     * Classes de "tipo" de ativo (para valor monetário por classe de ativo).
+     *
+     * @return array<int,string>
+     */
+    public static function getAssetTypeItemtypes()
+    {
+        return [
+            'ComputerType',
+            'MonitorType',
+            'NetworkEquipmentType',
+            'PeripheralType',
+            'PrinterType',
+            'CartridgeItemType',
+            'ConsumableItemType',
+            'PhoneType',
+            'RackType',
+            'PDUType',
+            'PassiveDCEquipmentType',
+            'CableType',
+        ];
+    }
+
+    /**
      * Ícone/menu em "Ativos". Habilita busca e criação a partir do menu.
      */
     public static function getMenuContent()
@@ -256,6 +279,10 @@ class PluginManagedservicesManagedservice extends CommonDBTM
                 `users_id` int unsigned NOT NULL DEFAULT 0,
                 `contracts_id` int unsigned NOT NULL DEFAULT 0,
                 `itilcategories_id` int unsigned NOT NULL DEFAULT 0,
+                `is_supporthours` tinyint NOT NULL DEFAULT 0,
+                `support_hours` decimal(10,2) NOT NULL DEFAULT 0,
+                `is_hourslimit` tinyint NOT NULL DEFAULT 0,
+                `hours_limit` decimal(10,2) NOT NULL DEFAULT 0,
                 `date_creation` timestamp NULL DEFAULT NULL,
                 `date_mod` timestamp NULL DEFAULT NULL,
                 PRIMARY KEY (`id`),

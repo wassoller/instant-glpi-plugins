@@ -14,6 +14,7 @@ function plugin_managedservices_install()
     PluginManagedservicesManager::install($migration);
     PluginManagedservicesCoveredasset::install($migration);
     PluginManagedservicesComposition::install($migration);
+    PluginManagedservicesFinancialvalue::install($migration);
     PluginManagedservicesNmsconfig::install($migration);
     PluginManagedservicesProfile::install($migration);
 
@@ -31,6 +32,7 @@ function plugin_managedservices_uninstall()
 
     PluginManagedservicesProfile::uninstall($migration);
     PluginManagedservicesNmsconfig::uninstall($migration);
+    PluginManagedservicesFinancialvalue::uninstall($migration);
     PluginManagedservicesComposition::uninstall($migration);
     PluginManagedservicesCoveredasset::uninstall($migration);
     PluginManagedservicesManager::uninstall($migration);

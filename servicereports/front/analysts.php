@@ -120,7 +120,8 @@ if ($tab === 'tecnicos') {
         echo "<div class='table-responsive'><table class='table table-hover'>";
         echo "<thead><tr>"
             . "<th>" . __('Chamado', 'servicereports') . "</th><th>" . __('Autor', 'servicereports') . "</th>"
-            . "<th>" . __('Entidade', 'servicereports') . "</th><th>" . __('Categoria', 'servicereports') . "</th>"
+            . "<th>" . __('Entidade', 'servicereports') . "</th><th>" . __('Data', 'servicereports') . "</th>"
+            . "<th>" . __('Categoria', 'servicereports') . "</th>"
             . "<th>" . __('Descrição', 'servicereports') . "</th><th>" . __('Técnico', 'servicereports') . "</th>"
             . "<th>" . __('Início', 'servicereports') . "</th><th>" . __('Fim', 'servicereports') . "</th>"
             . "<th>" . __('Duração', 'servicereports') . "</th></tr></thead><tbody>";
@@ -129,6 +130,7 @@ if ($tab === 'tecnicos') {
             echo "<td>" . (int) $r['tickets_id'] . "</td>";
             echo "<td>" . getUserName((int) $r['author']) . "</td>";
             echo "<td>" . Dropdown::getDropdownName('glpi_entities', (int) $r['entities_id']) . "</td>";
+            echo "<td>" . Html::convDateTime($r['task_date']) . "</td>";
             echo "<td>" . ((int) $r['taskcategories_id'] ? Dropdown::getDropdownName('glpi_taskcategories', (int) $r['taskcategories_id']) : '-') . "</td>";
             echo "<td>" . Html::resume_text(Toolbox::stripTags($r['content']), 50) . "</td>";
             echo "<td>" . getUserName((int) $r['tech']) . "</td>";
@@ -138,7 +140,7 @@ if ($tab === 'tecnicos') {
             echo "</tr>";
         }
         if (empty($data['rows'])) {
-            echo "<tr><td colspan='9' class='text-center text-muted'>" . __('Nenhum item encontrado', 'servicereports') . "</td></tr>";
+            echo "<tr><td colspan='10' class='text-center text-muted'>" . __('Nenhum item encontrado', 'servicereports') . "</td></tr>";
         }
         echo "</tbody></table></div>";
     } elseif ($report === 58) {

@@ -46,7 +46,7 @@ class PluginServicereportsAnalysts
                 WHERE u.id IN (
                     SELECT tt.users_id_tech FROM glpi_tickettasks tt
                     INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tt.tickets_id AND glpi_tickets.is_deleted=0
-                    WHERE tt.users_id_tech>0 AND tt.begin BETWEEN '$s' AND '$e' $ent
+                    WHERE tt.users_id_tech>0 AND tt.date BETWEEN '$s' AND '$e' $ent
                     UNION
                     SELECT tu.users_id FROM glpi_tickets_users tu
                     INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tu.tickets_id AND glpi_tickets.is_deleted=0
@@ -94,7 +94,7 @@ class PluginServicereportsAnalysts
         foreach ($DB->request("SELECT tt.users_id_tech tech, SUM(tt.actiontime) worked
              FROM glpi_tickettasks tt
              INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tt.tickets_id AND glpi_tickets.is_deleted=0
-             WHERE tt.users_id_tech IN ($ids) AND tt.begin BETWEEN '$s' AND '$e' $ent
+             WHERE tt.users_id_tech IN ($ids) AND tt.date BETWEEN '$s' AND '$e' $ent
              GROUP BY tt.users_id_tech") as $r) {
             $perf[(int) $r['tech']]['worked'] = (int) $r['worked'];
         }
@@ -161,13 +161,13 @@ class PluginServicereportsAnalysts
 
         $rows = [];
         $totalTime = 0;
-        foreach ($DB->request("SELECT tt.tickets_id, tt.content, tt.begin, tt.end, tt.actiontime,
+        foreach ($DB->request("SELECT tt.tickets_id, tt.content, tt.begin, tt.end, tt.actiontime, tt.date AS task_date,
                     tt.taskcategories_id, tt.users_id AS author, tt.users_id_tech AS tech,
                     tt.groups_id_tech, glpi_tickets.entities_id, glpi_tickets.date_creation
              FROM glpi_tickettasks tt
              INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tt.tickets_id AND glpi_tickets.is_deleted=0
-             WHERE tt.users_id_tech>0 AND tt.begin BETWEEN '$s' AND '$e' $ent $extra
-             ORDER BY tt.begin DESC") as $r) {
+             WHERE tt.users_id_tech>0 AND tt.date BETWEEN '$s' AND '$e' $ent $extra
+             ORDER BY tt.date DESC") as $r) {
             $totalTime += (int) $r['actiontime'];
             $rows[] = $r;
         }
@@ -200,7 +200,7 @@ class PluginServicereportsAnalysts
                     glpi_tickets.entities_id
              FROM glpi_tickettasks tt
              INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tt.tickets_id AND glpi_tickets.is_deleted=0
-             WHERE tt.users_id_tech>0 AND tt.begin BETWEEN '$s' AND '$e' $ent $extra") as $r) {
+             WHERE tt.users_id_tech>0 AND tt.date BETWEEN '$s' AND '$e' $ent $extra") as $r) {
             $key = $r['tech'] . '-' . $r['tickets_id'];
             if (!isset($agg[$key])) {
                 $agg[$key] = ['tech' => (int) $r['tech'], 'tickets_id' => (int) $r['tickets_id'],

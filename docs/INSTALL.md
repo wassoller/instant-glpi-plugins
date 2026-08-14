@@ -30,31 +30,40 @@ repositório privado no GitHub.
 
 ## 3. Passo a passo (Linux — caminho típico)
 
-Ajuste os caminhos conforme a sua instalação (a pasta do GLPI costuma ser
-`/var/www/glpi` ou `/var/www/html/glpi`).
+Ajuste o caminho do GLPI conforme a sua instalação (costuma ser
+`/var/www/glpi`, `/var/www/html/glpi` ou similar).
 
-**1) Clonar o repositório** (troque a URL pela da sua versão do GLPI):
+**1) Defina a variável `REPO` de acordo com a versão do seu GLPI.** Isso garante
+que o clone e a cópia usem sempre o **mesmo** nome de pasta (o erro mais comum é
+clonar um repositório e copiar do outro):
+
+```bash
+REPO=instant-glpi-plugins       # GLPI 10.0.x
+# REPO=instant-glpi11-plugins   # GLPI 11.0.x (use esta e comente a de cima)
+```
+
+**2) Clonar o repositório:**
 
 ```bash
 cd /tmp
-git clone https://github.com/wassoller/instant-glpi11-plugins.git
+git clone https://github.com/wassoller/$REPO.git
 ```
 
-**2) Copiar os dois plugins para a pasta de plugins do GLPI:**
+**3) Copiar os dois plugins para a pasta de plugins do GLPI** (ajuste o caminho):
 
 ```bash
-cp -r /tmp/instant-glpi11-plugins/managedservices /var/www/glpi/plugins/
-cp -r /tmp/instant-glpi11-plugins/servicereports  /var/www/glpi/plugins/
+sudo cp -r /tmp/$REPO/managedservices /var/www/glpi/plugins/
+sudo cp -r /tmp/$REPO/servicereports  /var/www/glpi/plugins/
 ```
 
-**3) Ajustar o dono para o usuário do servidor web** (ex.: `www-data`):
+**4) Ajustar o dono para o usuário do servidor web** (ex.: `www-data`):
 
 ```bash
-chown -R www-data:www-data /var/www/glpi/plugins/managedservices
-chown -R www-data:www-data /var/www/glpi/plugins/servicereports
+sudo chown -R www-data:www-data /var/www/glpi/plugins/managedservices
+sudo chown -R www-data:www-data /var/www/glpi/plugins/servicereports
 ```
 
-**4) Instalar e ativar** — pela interface **ou** pela linha de comando.
+**5) Instalar e ativar** — pela interface **ou** pela linha de comando.
 
 - **Pela interface:** entre em **Configuração > Plugins**, clique em
   *Instalar* e depois *Ativar* no **Serviços Gerenciados** e, em seguida, no
@@ -69,7 +78,7 @@ chown -R www-data:www-data /var/www/glpi/plugins/servicereports
   php bin/console plugin:activate servicereports
   ```
 
-**5) Conferir:** os menus **Ativos > Serviços Gerenciados** e
+**6) Conferir:** os menus **Ativos > Serviços Gerenciados** e
 **Gerência > Relatórios** devem aparecer.
 
 ---
@@ -85,11 +94,13 @@ depois o `servicereports`.
 ## 5. Atualizar para uma versão nova depois
 
 ```bash
-cd /tmp/instant-glpi11-plugins
+REPO=instant-glpi-plugins   # ou instant-glpi11-plugins (GLPI 11)
+cd /tmp/$REPO
 git pull
-cp -r managedservices /var/www/glpi/plugins/
-cp -r servicereports  /var/www/glpi/plugins/
-chown -R www-data:www-data /var/www/glpi/plugins/managedservices /var/www/glpi/plugins/servicereports
+sudo cp -r managedservices /var/www/glpi/plugins/
+sudo cp -r servicereports  /var/www/glpi/plugins/
+sudo chown -R www-data:www-data /var/www/glpi/plugins/managedservices
+sudo chown -R www-data:www-data /var/www/glpi/plugins/servicereports
 ```
 
 Se houver mudança de estrutura de banco, rode a atualização do plugin em
@@ -108,6 +119,10 @@ Se houver mudança de estrutura de banco, rode a atualização do plugin em
 
 ## 7. Dúvidas comuns
 
+- **`cp: cannot stat '.../managedservices': No such file or directory`.** Você
+  clonou um repositório mas copiou do outro (nomes diferentes:
+  `instant-glpi-plugins` vs `instant-glpi11-plugins`). Use a mesma variável
+  `REPO` do passo 1 no clone **e** na cópia.
 - **"Não aparece o menu."** Confirme que o plugin está *Ativado* em
   Configuração > Plugins e que o seu perfil tem o direito do plugin
   (o Super-Admin recebe acesso total automaticamente na instalação).

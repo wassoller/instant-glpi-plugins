@@ -94,10 +94,31 @@ Os plugins já rodam em **produção** no GLPI 10 da Instant
   `fputcsv` passe o `$escape` explícito (`''`) — PHP 8.4+ deprecou o default — e rode os
   valores por `html_entity_decode` (o GLPI devolve texto HTML-escapado, ex.: `&#62;`).
 
+## Relatórios de Gestão financeira — cuidados
+
+A sub-aba **Relatórios** (`front/financial.php` + `inc/financial.class.php`) tem 3
+relatórios (ids do original **1/2/4**); segue o mesmo padrão do `analysts.php`
+(seletor `report` com `on_change=this.form.submit()`, filtro `start_date`/`end_date`,
+CSV antes do `Html::header` com `exit`).
+
+- **Tempo de tarefas por `tt.date`** (mesma lição do Analistas), não `tt.begin`.
+- **Chamados vinculados ao serviço** = por `glpi_tickets.itilcategories_id` = categoria
+  do serviço **e/ou** por ativo coberto (`glpi_items_tickets` ↔ `coveredassets`).
+- **Valor de ativos** = casa `perclass` (itemtype `ComputerType`/`MonitorType`/… + id do
+  tipo) com o `…types_id` do ativo coberto (ver `assetTypeField()`).
+- **Sem modelo de dados** (batem com os zeros do demo Verdana): "valor por **categoria**
+  de chamado" e "**extras** relacionados a chamados" ficam R$ 0,00 — estrutura honesta.
+- **Fatura de serviços detalhada** (id 4): o original é PDF por engine próprio; aqui é
+  documento **HTML imprimível** via `Html::popHeader`/`popFooter` + `window.print()`
+  (rota `&pdf=1`). Mesma rota gera o "PDF" do Extrato.
+- Sem mudança de schema → atualizar é só `sync.sh` + recarregar (não reinstalar).
+
 ## O que falta (Fase 7)
 
 Traduções `.mo` (hoje os textos saem em pt-BR direto pelos `__()`), refino de
-ícones, e o **teste de instalação na VM real** da Instant.
+ícones, e o **teste de instalação na VM real** da Instant. Rebuild dos `dist/*.zip`
+antes do deploy. Replicar a sub-aba Relatórios financeira no repo **GLPI 11**
+(`instant-glpi11-plugins`) para manter paridade.
 
 ## Referências
 

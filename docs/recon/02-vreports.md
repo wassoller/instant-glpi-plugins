@@ -56,9 +56,27 @@ Título: "Dashboard financeiro — Em tempo real". Sub-abas: **Dashboards** e **
 - "Top 10 receitas previstas por entidade" (barras, por entidade)
 - "Top 10 valor médio por tipo de ativo" (barras, por tipo de ativo)
 
-### Relatórios (sub-aba) — a mapear no build.
+### Relatórios (sub-aba) — **mapeado** (seletor `report` + período `start_date`/`end_date`)
+Seletor com 3 relatórios (ids do original: 1, 2, 4; o id 3 não existe nesta instância):
+
+1. **Extrato financeiro** (`report=1`): "Extrato financeiro detalhado" + botões **CSV/PDF**.
+   Por **entidade**: Valor monetário total; somatórios dos valores **fixos** (mensal),
+   **categorias**, **hora**, **extras relacionados a chamados** e **ativos**. Por
+   **serviço** (com botão PDF): valor mensal, valor de ativos, valor por categoria de
+   chamado, extras, **tempo total de tarefas** (HH:MM:SS), valor total das tarefas, valor
+   total; + **Detalhamento dos ativos cobertos** e **Listagem dos chamados vinculados**.
+2. **Faturamento financeiro** (`report=2`): "Resumo financeiro geral" — período de
+   pesquisa + **valor monetário total faturado**. Ícone de export.
+3. **Fatura de serviços detalhada** (`report=4`): **PDF** embutido num `<iframe>`
+   (`.../reports/newServiceInvoice/view/pdf/index.php`) — documento de fatura gerado
+   server-side por engine PDF próprio.
 
 > Fonte dos números: tabelas financeiras do vservices (valor mensal, valor/hora, valor por classe de ativo, valor por usuário/BD/armazenamento) + `managedservices` (cliente/entidade).
+
+**No clone** (`servicereports/financial.php` + `financial.class.php`): mensal/ativos/tarefas
+computados de verdade; **categoria** e **extras** de chamado = R$ 0,00 (sem modelo de dados —
+batem com os zeros do demo); a Fatura detalhada vira **HTML imprimível** (`Html::popHeader` +
+`window.print()`) em vez do PDF proprietário.
 
 ---
 

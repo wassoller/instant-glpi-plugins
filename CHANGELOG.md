@@ -10,6 +10,27 @@ Primeira versão funcional dos dois plugins, reconstruídos por engenharia rever
 da UI web da instância Verdana e **validados num GLPI 10.0.26 local**. Os plugins já
 estão **em produção** no GLPI 10 da Instant (`suporte.instanttecnologia.com.br`).
 
+### Adicionado — Gestão financeira › sub-aba **Relatórios** (2026-08-14)
+Antes só existia o Dashboard; a sub-aba Relatórios estava **em branco**. Agora o
+bloco tem a navegação **Dashboards / Relatórios** (paridade com o vReports) e os 3
+relatórios do original, com filtro de período (`start_date`/`end_date`):
+- **Extrato financeiro** (id 1): detalhamento por entidade → por serviço. Componentes
+  computados de verdade a partir do `managedservices`: **valor mensal** (último
+  `monthly`), **valor de ativos** (soma dos `perclass` casados ao tipo dos ativos
+  cobertos), **tempo total de tarefas** (Σ `actiontime`, filtrado por `tt.date`) e
+  **valor das tarefas** (tempo × último `hourly`). Lista **ativos cobertos** e
+  **chamados vinculados** (nº com link, categoria do chamado, status). Export **CSV**
+  e visão **PDF** (página limpa via `Html::popHeader` + `window.print()`).
+- **Faturamento financeiro** (id 2): "Resumo financeiro geral" com período + valor
+  total faturado; export CSV por entidade.
+- **Fatura de serviços detalhada** (id 4): documento de fatura **imprimível** (HTML →
+  Salvar como PDF). O original gera PDF por engine próprio — entregue com nota honesta.
+- **Estrutura honesta** (sem modelo de dados no `managedservices`, batendo com os zeros
+  do demo Verdana): "valor por **categoria** de chamado" e "valores **extras**
+  relacionados a chamados" = R$ 0,00.
+- Validado no GLPI 10.0.26 local com dados reais (mensal R$ 1.500,50 + 6h × R$ 100/h =
+  **R$ 2.100,50**). Sem mudança de banco → atualizar é só copiar os arquivos e recarregar.
+
 ### Correções pós-deploy — bloco Analistas (relatórios), diagnosticadas em produção
 - **Relatório "Tarefas por Técnico" e Horas trabalhadas**: passam a filtrar o período
   por `tt.date` (data da tarefa) em vez de `tt.begin` (Início/planejamento, que fica
@@ -41,8 +62,9 @@ estão **em produção** no GLPI 10 da Instant (`suporte.instanttecnologia.com.b
 - Landing com os 3 blocos.
 - **Central de serviços**: 8 KPIs de chamados do mês (contagens via SQL) +
   deep-links para `/front/ticket.php` com os critérios exatos do original.
-- **Gestão financeira**: 6 KPIs + 2 gráficos de barras (HTML/CSS puro), lendo os
-  dados financeiros do `managedservices`.
+- **Gestão financeira**: sub-abas **Dashboards** (6 KPIs + 2 gráficos de barras
+  HTML/CSS puro) e **Relatórios** (Extrato financeiro, Faturamento financeiro, Fatura
+  de serviços detalhada), lendo os dados financeiros do `managedservices`.
 - **Analistas**: dashboard Técnicos (horas, chamados por tipo, satisfação, pontos)
   + Relatórios (Tarefas por Técnico e Horas fora de expediente) + Mapas.
 

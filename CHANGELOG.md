@@ -7,7 +7,22 @@ próprio no repositório `instant-glpi11-plugins`.
 ## [0.1.0] — 2026-08-13 (não lançado)
 
 Primeira versão funcional dos dois plugins, reconstruídos por engenharia reversa
-da UI web da instância Verdana e **validados num GLPI 10.0.26 local**.
+da UI web da instância Verdana e **validados num GLPI 10.0.26 local**. Os plugins já
+estão **em produção** no GLPI 10 da Instant (`suporte.instanttecnologia.com.br`).
+
+### Correções pós-deploy — bloco Analistas (relatórios), diagnosticadas em produção
+- **Relatório "Tarefas por Técnico" e Horas trabalhadas**: passam a filtrar o período
+  por `tt.date` (data da tarefa) em vez de `tt.begin` (Início/planejamento, que fica
+  **NULO** em tarefas não planejadas — a maioria). Sem isso, o relatório vinha **vazio**
+  em produção mesmo havendo tarefas com duração. Vale para getTasksReport,
+  getTechnicians, getPerformance e getOutOfHoursReport.
+- Coluna **"Data"** adicionada ao relatório 57; a coluna **"Categoria"** passa a exibir a
+  categoria do **chamado** (`glpi_tickets.itilcategories_id`), não a da tarefa (quase
+  sempre vazia).
+- **Número do chamado** vira link para o chamado (`/front/ticket.form.php?id=`).
+- **Exportação CSV** nos relatórios 57 e 59 (botão "Exportar CSV"; delimitador `;`, BOM
+  UTF-8, entidades HTML decodificadas; `$escape` explícito no `fputcsv` para PHP 8.4+).
+- Sem mudança de banco → atualizar é só copiar os arquivos e recarregar (não reinstalar).
 
 ### Adicionado — `managedservices` ("Serviços Gerenciados", menu Ativos)
 - Objeto principal `PluginManagedservicesManagedservice` (nome, cliente/`users_id`,

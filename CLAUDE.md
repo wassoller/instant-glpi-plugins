@@ -80,6 +80,20 @@ e `..._managedservices`. **Instale/desenvolva o `managedservices` primeiro.**
 - **Horas fora de expediente**: jornada fixa **Seg–Sex 08:00–18:00** (bateu com o
   exemplo da Verdana); pode ser ligada ao calendário do GLPI depois.
 
+## Relatórios de Analistas — cuidados (aprendido em produção)
+
+Os plugins já rodam em **produção** no GLPI 10 da Instant
+(`suporte.instanttecnologia.com.br`); estes ajustes vieram de dados reais:
+
+- **Período por `tt.date`, não `tt.begin`**: tarefas do GLPI só têm `begin`/`end` quando
+  *planejadas*; a maioria não é. Filtrar por `begin` deixa o relatório vazio em produção.
+  Vale para todas as consultas de tarefa em `Analysts` (já corrigido).
+- No relatório de tarefas, **"Categoria" = categoria do chamado** (`glpi_tickets.itilcategories_id`),
+  não `taskcategories_id` (quase sempre vazia). Número do chamado é link.
+- **Export CSV** fica em `front/analysts.php`, antes do `Html::header` (com `exit`). No
+  `fputcsv` passe o `$escape` explícito (`''`) — PHP 8.4+ deprecou o default — e rode os
+  valores por `html_entity_decode` (o GLPI devolve texto HTML-escapado, ex.: `&#62;`).
+
 ## O que falta (Fase 7)
 
 Traduções `.mo` (hoje os textos saem em pt-BR direto pelos `__()`), refino de

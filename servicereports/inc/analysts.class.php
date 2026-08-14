@@ -163,7 +163,7 @@ class PluginServicereportsAnalysts
         $totalTime = 0;
         foreach ($DB->request("SELECT tt.tickets_id, tt.content, tt.begin, tt.end, tt.actiontime, tt.date AS task_date,
                     tt.taskcategories_id, tt.users_id AS author, tt.users_id_tech AS tech,
-                    tt.groups_id_tech, glpi_tickets.entities_id, glpi_tickets.date_creation
+                    tt.groups_id_tech, glpi_tickets.entities_id, glpi_tickets.itilcategories_id AS ticket_cat, glpi_tickets.date_creation
              FROM glpi_tickettasks tt
              INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tt.tickets_id AND glpi_tickets.is_deleted=0
              WHERE tt.users_id_tech>0 AND tt.date BETWEEN '$s' AND '$e' $ent $extra

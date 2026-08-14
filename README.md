@@ -10,6 +10,12 @@ para uma VM própria mantendo as funcionalidades.
 > original. GLPI é GPL e plugins são obras derivadas GPL; este repositório é
 > distribuído sob **GPL-2.0-or-later** (ver [LICENSE](LICENSE)).
 
+## Status
+Em **produção** no GLPI 10 da Instant (`suporte.instanttecnologia.com.br`). O bloco
+Analistas recebeu correções recentes (relatórios filtrando por `tt.date`, categoria do
+chamado, número do chamado como link, exportação **CSV**) — ver [CHANGELOG.md](CHANGELOG.md).
+A versão para **GLPI 11** está no repositório `instant-glpi11-plugins`.
+
 ## Alvo
 - **GLPI 10.0.x** (validado contra 10.0.26), PHP 8.x.
 

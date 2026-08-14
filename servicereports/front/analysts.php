@@ -18,6 +18,48 @@ $end      = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['end_date'] ?? '') ? $_GET
 $startDt  = $start . ' 00:00:00';
 $endDt    = $end . ' 23:59:59';
 
+// Exportação CSV — deve ocorrer antes de qualquer saída HTML.
+if (($_GET['export'] ?? '') === 'csv' && $tab === 'relatorios' && in_array($report, [57, 59], true)) {
+    $filename = $report === 57 ? 'tarefas_por_tecnico.csv' : 'horas_fora_expediente.csv';
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF"); // BOM p/ acentos no Excel
+    $dec = static fn ($v) => html_entity_decode((string) $v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    if ($report === 57) {
+        $data = PluginServicereportsAnalysts::getTasksReport($startDt, $endDt, $techId, $ticketId);
+        fputcsv($out, ['Chamado', 'Autor', 'Entidade', 'Data', 'Categoria', 'Descrição', 'Técnico', 'Início', 'Fim', 'Duração'], ';', '"', '');
+        foreach ($data['rows'] as $r) {
+            fputcsv($out, array_map($dec, [
+                (int) $r['tickets_id'],
+                getUserName((int) $r['author']),
+                Dropdown::getDropdownName('glpi_entities', (int) $r['entities_id']),
+                $r['task_date'],
+                (int) $r['ticket_cat'] ? Dropdown::getDropdownName('glpi_itilcategories', (int) $r['ticket_cat']) : '',
+                Toolbox::stripTags($r['content']),
+                getUserName((int) $r['tech']),
+                $r['begin'],
+                $r['end'],
+                PluginServicereportsAnalysts::secToHms((int) $r['actiontime']),
+            ]), ';', '"', '');
+        }
+    } else {
+        $rows = PluginServicereportsAnalysts::getOutOfHoursReport($startDt, $endDt, $techId, $ticketId);
+        fputcsv($out, ['Técnico', 'ID do chamado', 'Tempo total de tarefas', 'Tempo fora do expediente', 'Entidade'], ';', '"', '');
+        foreach ($rows as $r) {
+            fputcsv($out, array_map($dec, [
+                getUserName((int) $r['tech']),
+                (int) $r['tickets_id'],
+                PluginServicereportsAnalysts::secToHms((int) $r['total']),
+                PluginServicereportsAnalysts::secToHms((int) $r['outside']),
+                Dropdown::getDropdownName('glpi_entities', (int) $r['entities_id']),
+            ]), ';', '"', '');
+        }
+    }
+    fclose($out);
+    exit;
+}
+
 Html::header(
     __('Analistas', 'servicereports'),
     $_SERVER['PHP_SELF'],
@@ -110,6 +152,15 @@ if ($tab === 'tecnicos') {
 
     $renderFilter('relatorios');
 
+    if (in_array($report, [57, 59], true)) {
+        $expUrl = $base . '?' . http_build_query([
+            'tab' => 'relatorios', 'report' => $report, 'start_date' => $start,
+            'end_date' => $end, 'technician_id' => $techId, 'ticket_id' => $ticketId, 'export' => 'csv',
+        ]);
+        echo "<a href='" . Html::cleanInputText($expUrl) . "' class='btn btn-outline-success btn-sm mb-3'>"
+            . "<i class='ti ti-file-spreadsheet me-1'></i>" . __('Exportar CSV', 'servicereports') . "</a>";
+    }
+
     if ($report === 57) {
         $data = PluginServicereportsAnalysts::getTasksReport($startDt, $endDt, $techId, $ticketId);
         echo "<h3 class='mb-2'>" . __('Tarefas por técnico', 'servicereports') . "</h3>";
@@ -127,11 +178,11 @@ if ($tab === 'tecnicos') {
             . "<th>" . __('Duração', 'servicereports') . "</th></tr></thead><tbody>";
         foreach ($data['rows'] as $r) {
             echo "<tr>";
-            echo "<td>" . (int) $r['tickets_id'] . "</td>";
+            echo "<td><a href='" . Html::cleanInputText($CFG_GLPI['root_doc'] . '/front/ticket.form.php?id=' . (int) $r['tickets_id']) . "'>" . (int) $r['tickets_id'] . "</a></td>";
             echo "<td>" . getUserName((int) $r['author']) . "</td>";
             echo "<td>" . Dropdown::getDropdownName('glpi_entities', (int) $r['entities_id']) . "</td>";
             echo "<td>" . Html::convDateTime($r['task_date']) . "</td>";
-            echo "<td>" . ((int) $r['taskcategories_id'] ? Dropdown::getDropdownName('glpi_taskcategories', (int) $r['taskcategories_id']) : '-') . "</td>";
+            echo "<td>" . ((int) $r['ticket_cat'] ? Dropdown::getDropdownName('glpi_itilcategories', (int) $r['ticket_cat']) : '-') . "</td>";
             echo "<td>" . Html::resume_text(Toolbox::stripTags($r['content']), 50) . "</td>";
             echo "<td>" . getUserName((int) $r['tech']) . "</td>";
             echo "<td>" . Html::convDateTime($r['begin']) . "</td>";

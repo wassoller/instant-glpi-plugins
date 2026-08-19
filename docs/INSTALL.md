@@ -93,14 +93,19 @@ depois o `servicereports`.
 
 ## 5. Atualizar para uma versão nova depois
 
+> **Caminho do GLPI da Instant (VM `vm-glpi-02`): `/var/www/instant/glpi`.**
+> Não é `/var/www/glpi` nem `/var/www/html/glpi`. Copiar para o caminho errado
+> faz o `cp` falhar com `No such file or directory` — e, como o `git pull` roda
+> normalmente, dá a impressão de que a correção "não fez efeito".
+
 ```bash
-REPO=instant-glpi-plugins   # ou instant-glpi11-plugins (GLPI 11)
+GLPI=/var/www/instant/glpi      # ajuste em outras instalações
+REPO=instant-glpi-plugins       # ou instant-glpi11-plugins (GLPI 11)
 cd /tmp/$REPO
 git pull
-sudo cp -r managedservices /var/www/glpi/plugins/
-sudo cp -r servicereports  /var/www/glpi/plugins/
-sudo chown -R www-data:www-data /var/www/glpi/plugins/managedservices
-sudo chown -R www-data:www-data /var/www/glpi/plugins/servicereports
+sudo cp -r managedservices servicereports "$GLPI/plugins/"
+sudo chown -R www-data:www-data "$GLPI/plugins/managedservices" "$GLPI/plugins/servicereports"
+ls -l "$GLPI/plugins/managedservices/inc/managedservice.class.php"   # confirme a data/hora
 ```
 
 Se houver mudança de estrutura de banco, rode a atualização do plugin em

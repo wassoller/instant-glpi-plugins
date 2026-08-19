@@ -203,35 +203,6 @@ class PluginManagedservicesManagedservice extends CommonDBTM
     }
 
     /**
-     * Categorias de chamado das entidades ativas, pelo **caminho completo**
-     * (`completename`), todas selecionáveis — inclusive as que têm filhas.
-     *
-     * @return array<int,string> id => caminho completo
-     */
-    public static function getCategoryOptions(): array
-    {
-        global $DB;
-
-        $out = [];
-        $iterator = $DB->request([
-            'SELECT' => ['id', 'completename', 'name'],
-            'FROM'   => 'glpi_itilcategories',
-            'WHERE'  => getEntitiesRestrictCriteria('glpi_itilcategories', '', '', true),
-            'ORDER'  => 'completename',
-        ]);
-        foreach ($iterator as $row) {
-            $label = (string) ($row['completename'] !== '' ? $row['completename'] : $row['name']);
-            if (method_exists('CommonTreeDropdown', 'sanitizeSeparatorInCompletename')) {
-                $label = CommonTreeDropdown::sanitizeSeparatorInCompletename($label);
-            }
-            // O GLPI grava o completename com HTML escapado (o separador vira `&#62;`);
-            // sem decodificar, o select mostraria "Suporte Avançado &#62; Active Directory".
-            $out[(int) $row['id']] = html_entity_decode($label, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        }
-        return $out;
-    }
-
-    /**
      * Formulário principal do serviço gerenciado.
      */
     public function showForm($ID, array $options = [])
@@ -266,20 +237,14 @@ class PluginManagedservicesManagedservice extends CommonDBTM
         echo "<tr class='tab_bg_1'>";
         echo "<td>" . __('Categoria de chamado', 'managedservices') . "</td>";
         echo "<td>";
-        // Lista PLANA com o caminho completo, em vez do dropdown de árvore do core.
-        // Motivo: no dropdown de árvore o GLPI (a) marca as categorias-pai como
-        // `disabled` — só rótulo da hierarquia, impossível escolher "Suporte Avançado"
-        // quando ela tem filhas — e (b) exibe apenas o nome da folha, deixando
-        // homônimas ("A > Suporte Avançado" e "B > Suporte Avançado") idênticas na tela.
-        Dropdown::showFromArray(
-            'itilcategories_id',
-            self::getCategoryOptions(),
-            [
-                'value'               => $this->fields['itilcategories_id'] ?? 0,
-                'display_emptychoice' => true,
-                'width'               => '300px',
-            ]
-        );
+        // permit_select_parent: sem isso o GLPI marca as categorias-pai como
+        // `disabled` (só rótulo da hierarquia) e não dá para escolher, p.ex.,
+        // "Suporte Avançado" quando ela tem filhas.
+        ITILCategory::dropdown([
+            'name'                 => 'itilcategories_id',
+            'value'                => $this->fields['itilcategories_id'] ?? 0,
+            'permit_select_parent' => true,
+        ]);
         echo "</td>";
         echo "</tr>";
 

@@ -85,8 +85,7 @@ foreach ($tabs as $key => $label) {
 echo "</ul>";
 
 // --- Filtro comum (data + técnico) ---
-$renderFilter = function (string $tab) use ($base, $start, $end, $techId, $startDt, $endDt) {
-    $techs = PluginServicereportsAnalysts::getTechnicians($startDt, $endDt);
+$renderFilter = function (string $tab) use ($base, $start, $end, $techId) {
     echo "<form method='get' action='" . Html::cleanInputText($base) . "' class='card card-body mb-3'>";
     echo Html::hidden('tab', ['value' => $tab]);
     if (isset($_GET['report'])) {
@@ -100,7 +99,12 @@ $renderFilter = function (string $tab) use ($base, $start, $end, $techId, $start
     Html::showDateField('end_date', ['value' => $end]);
     echo "</div>";
     echo "<div class='col-auto'><label class='form-label'>" . __('Técnico', 'servicereports') . "</label><br>";
-    Dropdown::showFromArray('technician_id', [0 => __('Todos', 'servicereports')] + $techs, ['value' => $techId, 'width' => '220px']);
+    // Todos os técnicos do GLPI (direito own_ticket), não só os ativos no período.
+    Dropdown::showFromArray(
+        'technician_id',
+        [0 => __('Todos', 'servicereports')] + PluginServicereportsAnalysts::getAllTechnicians(),
+        ['value' => $techId, 'width' => '260px']
+    );
     echo "</div>";
     echo "<div class='col-auto'>" . Html::submit(__('Filtrar', 'servicereports'), ['class' => 'btn btn-primary']) . "</div>";
     echo "</div></form>";
@@ -161,13 +165,23 @@ if ($tab === 'tecnicos') {
             . "<i class='ti ti-file-spreadsheet me-1'></i>" . __('Exportar CSV', 'servicereports') . "</a>";
     }
 
+    // Parâmetros preservados nos links de paginação.
+    $pagerParams = [
+        'tab' => 'relatorios', 'report' => $report, 'start_date' => $start,
+        'end_date' => $end, 'technician_id' => $techId, 'ticket_id' => $ticketId,
+    ];
+    $perPage = PluginServicereportsPager::PER_PAGE;
+
     if ($report === 57) {
-        $data = PluginServicereportsAnalysts::getTasksReport($startDt, $endDt, $techId, $ticketId);
+        $count  = PluginServicereportsAnalysts::getTasksReport($startDt, $endDt, $techId, $ticketId, 1);
+        $offset = PluginServicereportsPager::offset((int) $count['total_tasks']);
+        $data   = PluginServicereportsAnalysts::getTasksReport($startDt, $endDt, $techId, $ticketId, $perPage, $offset);
         echo "<h3 class='mb-2'>" . __('Tarefas por técnico', 'servicereports') . "</h3>";
         echo "<div class='mb-3 text-muted'>";
         echo __('Total de tarefas', 'servicereports') . ": <strong>" . $data['total_tasks'] . "</strong> &middot; ";
         echo __('Tempo total de tarefas', 'servicereports') . ": <strong>" . PluginServicereportsAnalysts::secToHms($data['total_time']) . "</strong>";
         echo "</div>";
+        PluginServicereportsPager::show($base, $pagerParams, $offset, (int) $data['total_tasks']);
         echo "<div class='table-responsive'><table class='table table-hover'>";
         echo "<thead><tr>"
             . "<th>" . __('Chamado', 'servicereports') . "</th><th>" . __('Autor', 'servicereports') . "</th>"
@@ -194,6 +208,7 @@ if ($tab === 'tecnicos') {
             echo "<tr><td colspan='10' class='text-center text-muted'>" . __('Nenhum item encontrado', 'servicereports') . "</td></tr>";
         }
         echo "</tbody></table></div>";
+        PluginServicereportsPager::show($base, $pagerParams, $offset, (int) $data['total_tasks']);
     } elseif ($report === 58) {
         echo "<h3 class='mb-2'>" . __('Deslocamentos por técnico', 'servicereports') . "</h3>";
         echo "<div class='alert alert-secondary'>"
@@ -201,9 +216,13 @@ if ($tab === 'tecnicos') {
             . __('Este relatório depende de uma fonte de dados de deslocamento (não nativa do GLPI). Sem registros disponíveis.', 'servicereports')
             . "</div>";
     } elseif ($report === 59) {
-        $rows = PluginServicereportsAnalysts::getOutOfHoursReport($startDt, $endDt, $techId, $ticketId);
+        $allRows = PluginServicereportsAnalysts::getOutOfHoursReport($startDt, $endDt, $techId, $ticketId);
+        $total   = count($allRows);
+        $offset  = PluginServicereportsPager::offset($total);
+        $rows    = array_slice($allRows, $offset, $perPage);
         echo "<h3 class='mb-2'>" . __('Horas fora de expediente de técnicos por chamado', 'servicereports') . "</h3>";
         echo "<div class='text-muted mb-2'>" . __('Expediente considerado: Seg–Sex, 08:00–18:00.', 'servicereports') . "</div>";
+        PluginServicereportsPager::show($base, $pagerParams, $offset, $total);
         echo "<div class='table-responsive'><table class='table table-hover'>";
         echo "<thead><tr>"
             . "<th>" . __('Técnico', 'servicereports') . "</th><th>" . __('ID do chamado', 'servicereports') . "</th>"
@@ -223,6 +242,7 @@ if ($tab === 'tecnicos') {
             echo "<tr><td colspan='5' class='text-center text-muted'>" . __('Nenhum item encontrado', 'servicereports') . "</td></tr>";
         }
         echo "</tbody></table></div>";
+        PluginServicereportsPager::show($base, $pagerParams, $offset, $total);
     } else {
         echo "<div class='alert alert-info'>" . __('Selecione um relatório.', 'servicereports') . "</div>";
     }

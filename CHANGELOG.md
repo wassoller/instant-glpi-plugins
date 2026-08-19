@@ -6,6 +6,24 @@ próprio no repositório `instant-glpi11-plugins`.
 
 ## [0.1.0] — 2026-08-13 (não lançado)
 
+### Ajustes — Relatórios financeiros e Analistas (2026-08-19)
+- **Categoria do serviço passa a incluir toda a subárvore**: os chamados vinculados a um
+  serviço por categoria agora consideram a categoria declarada em *Serviços Gerenciados*
+  **e todas as suas filhas** (`getSonsOf('glpi_itilcategories', …)`). Ex.: um serviço em
+  "Suporte Avançado" passa a somar os chamados de
+  "Suporte Avançado > Active Directory > Criação / Alteração de GPO".
+  Afeta o Extrato financeiro (1), o Faturamento (2) e a Fatura detalhada (4) — valores de
+  hora, tempo de tarefas e a listagem de chamados.
+- **Analistas › dropdown "Técnico"**: lista **todos os técnicos do GLPI** (usuários com o
+  direito `own_ticket`, mesmo critério do campo "Atribuído a" do core), e não só os que
+  tiveram atividade no intervalo de datas. O técnico escolhido sem atividade no período
+  agora aparece na aba Técnicos com o cartão zerado, em vez de "nenhum técnico".
+- **Paginação de 10 em 10** nos relatórios (`PluginServicereportsPager`, `inc/pager.class.php`):
+  Analistas 57 (tarefas — via `LIMIT/OFFSET`, com os totais calculados sobre o período
+  inteiro) e 59 (horas fora de expediente), e Gestão financeira 1 e 4 (10 serviços por
+  página). Exportações **CSV** e a visão de **impressão/PDF** continuam completas
+  (sem paginação); filtrar volta para a 1ª página.
+
 Primeira versão funcional dos dois plugins, reconstruídos por engenharia reversa
 da UI web da instância Verdana e **validados num GLPI 10.0.26 local**. Os plugins já
 estão **em produção** no GLPI 10 da Instant (`suporte.instanttecnologia.com.br`).

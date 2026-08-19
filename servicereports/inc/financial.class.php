@@ -214,8 +214,26 @@ class PluginServicereportsFinancial
     }
 
     /**
-     * IDs de chamados vinculados ao serviço: por categoria do serviço
-     * (glpi_tickets.itilcategories_id) e/ou por ativo coberto (glpi_items_tickets).
+     * Categoria do serviço + **toda a sua descendência** na árvore de categorias.
+     * Ex.: "Suporte Avançado" traz também "Suporte Avançado > Active Directory >
+     * Criação / Alteração de GPO".
+     *
+     * @return int[]
+     */
+    public static function categoryTreeIds(int $catId): array
+    {
+        if ($catId <= 0) {
+            return [];
+        }
+        // getSonsOf() devolve a própria categoria + todas as filhas (recursivo).
+        $ids = array_map('intval', array_values(getSonsOf('glpi_itilcategories', $catId)));
+        return $ids ?: [$catId];
+    }
+
+    /**
+     * IDs de chamados vinculados ao serviço: por categoria do serviço — incluindo
+     * as subcategorias (glpi_tickets.itilcategories_id ∈ árvore da categoria) —
+     * e/ou por ativo coberto (glpi_items_tickets).
      *
      * @return int[]
      */
@@ -224,11 +242,12 @@ class PluginServicereportsFinancial
         global $DB;
         $ids = [];
 
-        if ($catId > 0) {
+        $cats = self::categoryTreeIds($catId);
+        if (!empty($cats)) {
             $res = $DB->request([
                 'SELECT' => 'id',
                 'FROM'   => 'glpi_tickets',
-                'WHERE'  => ['itilcategories_id' => $catId, 'entities_id' => $entity, 'is_deleted' => 0],
+                'WHERE'  => ['itilcategories_id' => $cats, 'entities_id' => $entity, 'is_deleted' => 0],
             ]);
             foreach ($res as $r) {
                 $ids[(int) $r['id']] = true;
@@ -416,6 +435,44 @@ class PluginServicereportsFinancial
         return $byEntity;
     }
 
+    /** Nº total de serviços do extrato (base da paginação). */
+    public static function countServices(array $extrato): int
+    {
+        $n = 0;
+        foreach ($extrato as $ent) {
+            $n += count($ent['services']);
+        }
+        return $n;
+    }
+
+    /**
+     * Recorta o extrato numa página de serviços (10 em 10), preservando a ordem
+     * e os totais por entidade; entidades sem serviço na página saem da lista.
+     */
+    public static function sliceExtrato(array $extrato, int $offset, int $perPage): array
+    {
+        $out = [];
+        $i   = 0;
+        $end = $offset + $perPage;
+        foreach ($extrato as $entId => $ent) {
+            $keep = [];
+            foreach ($ent['services'] as $svc) {
+                if ($i >= $offset && $i < $end) {
+                    $keep[] = $svc;
+                }
+                $i++;
+            }
+            if (!empty($keep)) {
+                $ent['services'] = $keep;
+                $out[$entId] = $ent;
+            }
+            if ($i >= $end) {
+                break;
+            }
+        }
+        return $out;
+    }
+
     /** Total geral faturado no período (Faturamento financeiro). */
     public static function getFaturamentoTotal(string $startDt, string $endDt): float
     {
@@ -592,7 +649,10 @@ class PluginServicereportsFinancial
                     . "<td class='text-end'>" . self::money($svc['task_value']) . "</td>"
                     . "<td class='text-end'>" . self::money($svc['total']) . "</td></tr>";
             }
-            echo "</tbody><tfoot><tr><th>" . __('Total da entidade', 'servicereports') . "</th>"
+            // Total da entidade = período inteiro (a listagem acima pode estar paginada).
+            echo "</tbody><tfoot><tr><th>" . __('Total da entidade', 'servicereports')
+                . " <span class='text-muted fw-normal' style='font-size:.8rem'>("
+                . __('todos os serviços do período', 'servicereports') . ")</span></th>"
                 . "<th colspan='3'></th><th class='text-end'>" . self::money($ent['summary']['total']) . "</th></tr></tfoot>";
             echo "</table></div>";
             echo "</div></div>";

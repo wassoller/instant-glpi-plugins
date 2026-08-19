@@ -191,18 +191,28 @@ if ($tab === 'dashboards') {
         echo "<i class='ti ti-clipboard-list' style='font-size:3rem;opacity:.4'></i>";
         echo "<div class='mt-2'>" . __('Nenhum relatório selecionado', 'servicereports') . "</div>";
         echo "</div>";
-    } elseif ($report === 1) {
-        $extrato = PluginServicereportsFinancial::getExtrato($startDt, $endDt);
-        PluginServicereportsFinancial::renderExtrato(
-            $extrato,
-            $url(['export' => 'csv']),
-            $url(['pdf' => '1'])
-        );
+    } elseif ($report === 1 || $report === 4) {
+        // Listagem paginada de 10 em 10 serviços (CSV/PDF continuam completos).
+        $extrato     = PluginServicereportsFinancial::getExtrato($startDt, $endDt);
+        $totalSvc    = PluginServicereportsFinancial::countServices($extrato);
+        $perPage     = PluginServicereportsPager::PER_PAGE;
+        $offset      = PluginServicereportsPager::offset($totalSvc);
+        $page        = PluginServicereportsFinancial::sliceExtrato($extrato, $offset, $perPage);
+        $pagerParams = ['tab' => 'relatorios', 'report' => $report, 'start_date' => $start, 'end_date' => $end];
+
+        PluginServicereportsPager::show($base, $pagerParams, $offset, $totalSvc);
+        if ($report === 1) {
+            PluginServicereportsFinancial::renderExtrato(
+                $page,
+                $url(['export' => 'csv']),
+                $url(['pdf' => '1'])
+            );
+        } else {
+            PluginServicereportsFinancial::renderFaturaDetalhada($page, $start, $end, $url(['pdf' => '1']));
+        }
+        PluginServicereportsPager::show($base, $pagerParams, $offset, $totalSvc);
     } elseif ($report === 2) {
         PluginServicereportsFinancial::renderFaturamento($start, $end, $startDt, $endDt, $url(['export' => 'csv']));
-    } elseif ($report === 4) {
-        $extrato = PluginServicereportsFinancial::getExtrato($startDt, $endDt);
-        PluginServicereportsFinancial::renderFaturaDetalhada($extrato, $start, $end, $url(['pdf' => '1']));
     } else {
         echo "<div class='alert alert-info'>" . __('Relatório não disponível.', 'servicereports') . "</div>";
     }

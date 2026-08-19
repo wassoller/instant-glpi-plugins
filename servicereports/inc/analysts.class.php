@@ -32,6 +32,8 @@ class PluginServicereportsAnalysts
 
     /**
      * Técnicos com atividade (atribuídos ou com tarefas) no período.
+     * Usado para montar os cartões de performance — o dropdown de filtro lista
+     * **todos** os técnicos do GLPI (User::dropdown com o direito own_ticket).
      *
      * @return array<int,string> id => nome
      */
@@ -61,6 +63,30 @@ class PluginServicereportsAnalysts
     }
 
     /**
+     * **Todos** os técnicos do GLPI (usuários com o direito `own_ticket`, os que
+     * podem ser atribuídos a chamados), nas entidades ativas — independente de
+     * terem atividade no período filtrado.
+     *
+     * @return array<int,string> id => nome
+     */
+    public static function getAllTechnicians(): array
+    {
+        $out = [];
+        // false = lista (não contagem); mesmo critério do campo "Atribuído a" do core.
+        $iterator = User::getSqlSearchResult(false, 'own_ticket');
+        foreach ($iterator as $row) {
+            $out[(int) $row['id']] = formatUserName(
+                $row['id'],
+                $row['name'],
+                $row['realname'] ?? '',
+                $row['firstname'] ?? ''
+            );
+        }
+        asort($out, SORT_NATURAL | SORT_FLAG_CASE);
+        return $out;
+    }
+
+    /**
      * Métricas de performance por técnico.
      *
      * @param int[] $techIds  filtra técnicos (vazio = todos com atividade)
@@ -73,9 +99,18 @@ class PluginServicereportsAnalysts
         $e = $DB->escape($end);
         $ent = getEntitiesRestrictRequest('AND', 'glpi_tickets');
 
-        $techs = self::getTechnicians($start, $end);
+        // Técnico escolhido no filtro aparece mesmo sem atividade no período
+        // (o dropdown lista todos os técnicos do GLPI, não só os do período).
         if (!empty($techIds)) {
-            $techs = array_intersect_key($techs, array_flip(array_map('intval', $techIds)));
+            $techs = [];
+            foreach ($techIds as $tid) {
+                $tid = (int) $tid;
+                if ($tid > 0) {
+                    $techs[$tid] = getUserName($tid);
+                }
+            }
+        } else {
+            $techs = self::getTechnicians($start, $end);
         }
         if (empty($techs)) {
             return [];
@@ -143,9 +178,12 @@ class PluginServicereportsAnalysts
     /**
      * Relatório 57 — Tarefas por Técnico.
      *
+     * Os totais (nº de tarefas / tempo) são sempre do período inteiro; `$limit`
+     * pagina apenas as linhas exibidas (0 = todas, usado no CSV).
+     *
      * @return array{rows:array<int,array<string,mixed>>,total_tasks:int,total_time:int}
      */
-    public static function getTasksReport(string $start, string $end, int $techId = 0, int $ticketId = 0): array
+    public static function getTasksReport(string $start, string $end, int $techId = 0, int $ticketId = 0, int $limit = 0, int $offset = 0): array
     {
         global $DB;
         $s = $DB->escape($start);
@@ -159,20 +197,33 @@ class PluginServicereportsAnalysts
             $extra .= ' AND tt.tickets_id=' . (int) $ticketId;
         }
 
+        // Totais do período completo (independem da paginação).
+        $tot = $DB->request("SELECT COUNT(*) nb, COALESCE(SUM(tt.actiontime),0) total_time
+             FROM glpi_tickettasks tt
+             INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tt.tickets_id AND glpi_tickets.is_deleted=0
+             WHERE tt.users_id_tech>0 AND tt.date BETWEEN '$s' AND '$e' $ent $extra")->current();
+
+        $page = '';
+        if ($limit > 0) {
+            $page = ' LIMIT ' . (int) $limit . ' OFFSET ' . max(0, (int) $offset);
+        }
+
         $rows = [];
-        $totalTime = 0;
         foreach ($DB->request("SELECT tt.tickets_id, tt.content, tt.begin, tt.end, tt.actiontime, tt.date AS task_date,
                     tt.taskcategories_id, tt.users_id AS author, tt.users_id_tech AS tech,
                     tt.groups_id_tech, glpi_tickets.entities_id, glpi_tickets.itilcategories_id AS ticket_cat, glpi_tickets.date_creation
              FROM glpi_tickettasks tt
              INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tt.tickets_id AND glpi_tickets.is_deleted=0
              WHERE tt.users_id_tech>0 AND tt.date BETWEEN '$s' AND '$e' $ent $extra
-             ORDER BY tt.date DESC") as $r) {
-            $totalTime += (int) $r['actiontime'];
+             ORDER BY tt.date DESC$page") as $r) {
             $rows[] = $r;
         }
 
-        return ['rows' => $rows, 'total_tasks' => count($rows), 'total_time' => $totalTime];
+        return [
+            'rows'        => $rows,
+            'total_tasks' => (int) ($tot['nb'] ?? 0),
+            'total_time'  => (int) ($tot['total_time'] ?? 0),
+        ];
     }
 
     /**

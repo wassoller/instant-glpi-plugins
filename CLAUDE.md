@@ -111,14 +111,27 @@ CSV antes do `Html::header` com `exit`).
 - **Fatura de serviços detalhada** (id 4): o original é PDF por engine próprio; aqui é
   documento **HTML imprimível** via `Html::popHeader`/`popFooter` + `window.print()`
   (rota `&pdf=1`). Mesma rota gera o "PDF" do Extrato.
+- **Categoria do serviço = subárvore inteira**: use `categoryTreeIds()` (baseado em
+  `getSonsOf('glpi_itilcategories', $id)`), nunca igualdade simples — um serviço em
+  "Suporte Avançado" tem de somar "Suporte Avançado > Active Directory > … > GPO".
 - Sem mudança de schema → atualizar é só `sync.sh` + recarregar (não reinstalar).
+
+## Paginação dos relatórios
+
+`PluginServicereportsPager` (`servicereports/inc/pager.class.php`) — 10 itens por página
+(`PER_PAGE`), offset no parâmetro `start` da URL (convenção do core). `offset($total)`
+normaliza o valor recebido; `show($base, $params, $offset, $total)` desenha a barra.
+Regras: os **totais** do cabeçalho são sempre do período inteiro (no relatório 57 vêm de
+uma consulta agregada separada, com `LIMIT/OFFSET` só nas linhas); **CSV e impressão/PDF
+nunca paginam**; os formulários de filtro não enviam `start`, então filtrar volta à 1ª página.
 
 ## O que falta (Fase 7)
 
 Traduções `.mo` (hoje os textos saem em pt-BR direto pelos `__()`), refino de
 ícones, e o **teste de instalação na VM real** da Instant. Rebuild dos `dist/*.zip`
-antes do deploy. Replicar a sub-aba Relatórios financeira no repo **GLPI 11**
-(`instant-glpi11-plugins`) para manter paridade.
+antes do deploy. Replicar no repo **GLPI 11** (`instant-glpi11-plugins`) a sub-aba
+Relatórios financeira, a subárvore de categorias, o dropdown com todos os técnicos e a
+paginação, para manter paridade.
 
 ## Referências
 

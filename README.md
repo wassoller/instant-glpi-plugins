@@ -11,10 +11,14 @@ para uma VM própria mantendo as funcionalidades.
 > distribuído sob **GPL-2.0-or-later** (ver [LICENSE](LICENSE)).
 
 ## Status
-Em **produção** no GLPI 10 da Instant (`suporte.instanttecnologia.com.br`). O bloco
-Analistas recebeu correções recentes (relatórios filtrando por `tt.date`, categoria do
-chamado, número do chamado como link, exportação **CSV**) — ver [CHANGELOG.md](CHANGELOG.md).
-A versão para **GLPI 11** está no repositório `instant-glpi11-plugins`.
+Em **produção** no GLPI 10 da Instant (`suporte.instanttecnologia.com.br`), instalado em
+`/var/www/instant/glpi`. A rodada **0.2.0** (2026-08-19) trouxe o Extrato financeiro no
+formato pedido pelo cliente (listagem de chamados com custos, PDF em paisagem com logo e
+título próprios), **paginação de 10 em 10** nos relatórios e a correção de três bugs
+relevantes — dashboard em branco quando a sessão está restrita a uma entidade, categoria-pai
+não selecionável em Serviços Gerenciados e chamados invisíveis para serviço recursivo.
+Detalhes no [CHANGELOG.md](CHANGELOG.md). A versão para **GLPI 11** está no repositório
+`instant-glpi11-plugins` e **ainda não** tem essas mudanças.
 
 ## Alvo
 - **GLPI 10.0.x** (validado contra 10.0.26), PHP 8.x.
@@ -31,6 +35,10 @@ Composição do serviço, Financeiro (valores historizados) e Configuração NMS
 Reimplementação de 3 blocos do *Verdana vReports* (interno `vreports`):
 **Central de serviços**, **Gestão financeira** (lê dados do `managedservices`) e
 **Analistas**. Menu: **Gerência > Relatórios**.
+Gestão financeira tem **Dashboards** (KPIs + gráficos) e **Relatórios** (Extrato
+financeiro, Faturamento e Fatura detalhada, com export CSV e versão imprimível/PDF);
+Analistas tem Técnicos, Relatórios (tarefas por técnico, deslocamentos, horas fora de
+expediente) e Mapas. As listagens paginam de 10 em 10; CSV e PDF saem completos.
 
 ## Versão GLPI 11
 Este repositório é a versão **GLPI 10.0.x**. O port para **GLPI 11.0.x** está no
@@ -40,6 +48,8 @@ repositório separado **`instant-glpi11-plugins`** (classes namespaced em `src/`
 ```
 managedservices/     # plugin GLPI 10 (copiar para glpi/plugins/managedservices)
 servicereports/      # plugin GLPI 10 (copiar para glpi/plugins/servicereports)
+  inc/pager.class.php     # paginação (10 por página) das listagens de relatório
+  pics/instant-logo.png   # logo usada no cabeçalho do PDF do Extrato (trocável)
 docs/recon/          # notas de engenharia reversa (modelo de dados, KPIs, telas)
 docs/INSTALL.md      # passo a passo de instalação via git clone (também em .pdf)
 dist/*.zip           # pacotes prontos dos plugins (descompactar em glpi/plugins/)
@@ -62,9 +72,9 @@ Guia completo em [docs/INSTALL.md](docs/INSTALL.md) (e `docs/INSTALL.pdf`). Resu
 - [x] **Fase 4** — `servicereports`: landing + Central de Serviços (KPIs + deep-links). *Validado em GLPI 10.0.26.*
 - [x] **Fase 5** — `servicereports`: Gestão Financeira (lê `managedservices`) + gráficos. *Validado em GLPI 10.0.26.*
 - [x] **Fase 6** — `servicereports`: Analistas (Técnicos, Relatórios, Mapas). *Validado em GLPI 10.0.26. Deslocamentos e Mapas dependem de fontes de dados não-nativas (Verdana) — estrutura + nota.*
-- [~] **Fase 7** — polish: **feito** os pacotes `dist/*.zip` e o guia de instalação;
-  **pendente** as traduções `.mo` (os textos já saem em pt-BR via `__()`), refino de
-  ícones e o teste de instalação na VM real.
+- [~] **Fase 7** — polish: **feito** os pacotes `dist/*.zip`, o guia de instalação e o
+  deploy na VM real (`/var/www/instant/glpi`); **pendente** as traduções `.mo` (os textos
+  já saem em pt-BR via `__()`), refino de ícones e a paridade da versão GLPI 11.
 
 Também disponível: **port para GLPI 11** no repositório `instant-glpi11-plugins`.
 

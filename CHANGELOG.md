@@ -4,83 +4,84 @@ Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/).
 Alvo: **GLPI 10.0.x** (validado em 10.0.26). A versão para GLPI 11 tem changelog
 próprio no repositório `instant-glpi11-plugins`.
 
-## [0.1.0] — 2026-08-13 (não lançado)
+## [0.2.0] — 2026-08-19 (não lançado)
 
-### Ajustes — Relatórios financeiros e Analistas (2026-08-19)
-- **Categoria do serviço passa a incluir toda a subárvore**: os chamados vinculados a um
-  serviço por categoria agora consideram a categoria declarada em *Serviços Gerenciados*
-  **e todas as suas filhas** (`getSonsOf('glpi_itilcategories', …)`). Ex.: um serviço em
-  "Suporte Avançado" passa a somar os chamados de
-  "Suporte Avançado > Active Directory > Criação / Alteração de GPO".
-  Afeta o Extrato financeiro (1), o Faturamento (2) e a Fatura detalhada (4) — valores de
-  hora, tempo de tarefas e a listagem de chamados.
-- **Analistas › dropdown "Técnico"**: lista **todos os técnicos do GLPI** (usuários com o
-  direito `own_ticket`, mesmo critério do campo "Atribuído a" do core), e não só os que
-  tiveram atividade no intervalo de datas. O técnico escolhido sem atividade no período
-  agora aparece na aba Técnicos com o cartão zerado, em vez de "nenhum técnico".
-- **Categoria-pai volta a ser selecionável em Serviços Gerenciados**: o dropdown
-  "Categoria de chamado" usava o padrão do GLPI, que renderiza as categorias **pai**
-  como item `disabled` (só rótulo da hierarquia). Resultado: não dava para escolher
-  "Suporte Avançado" justamente por ela ter filhas. Corrigido com
-  `'permit_select_parent' => true` (mesmo parâmetro que o core usa na busca), mantendo
-  o dropdown de árvore nativo; cada opção passa a ter o caminho completo no `title`,
-  o que ajuda a distinguir homônimas (ex.: `Suporte Básico > Suporte Avançado`).
-- **Serviço recursivo cobre as entidades filhas**: a busca de chamados por categoria
-  usava `entities_id` **igual** ao do serviço; agora, quando o serviço é `is_recursive`,
-  considera a entidade **e suas descendentes** (`getSonsOf('glpi_entities', …)`). Sem isso
-  um serviço recursivo cadastrado na entidade-pai não via nenhum chamado das filhas e o
-  extrato saía zerado.
+Rodada de ajustes pedida pela Instant sobre o que já rodava em produção. No caminho
+apareceram **três bugs sérios** (dashboard em branco fora da entidade raiz,
+categoria-pai não selecionável e chamados invisíveis para serviço recursivo) e uma
+descoberta de infra: o `cp` do deploy vinha **falhando** porque o caminho do GLPI da
+Instant não é `/var/www/glpi` e sim **`/var/www/instant/glpi`** — por isso três
+correções seguidas "não fizeram efeito". Nenhuma mudança de schema: atualizar é
+copiar os arquivos e recarregar.
+
+### Corrigido
+- **Dashboard financeiro em branco fora da entidade raiz**: `latestValuesSql()` passava
+  o **nome da tabela** para `getEntitiesRestrictRequest()` enquanto o `FROM` a aliasa
+  como `ms`. Com a sessão restrita a uma entidade (o caso normal de quem trabalha dentro
+  de um cliente) o SQL citava uma coluna inexistente, a consulta falhava e a aba
+  **Dashboards saía só com o título**. Na entidade raiz vendo tudo o GLPI não gera
+  cláusula nenhuma — por isso o bug passou por todos os testes anteriores.
+- **Categoria-pai não selecionável em Serviços Gerenciados**: o dropdown "Categoria de
+  chamado" usava o padrão do GLPI, que renderiza os nós **pai** como item `disabled`
+  (só rótulo da hierarquia). Não dava para escolher "Suporte Avançado" justamente por
+  ela ter filhas. Resolvido com `'permit_select_parent' => true` — o mesmo parâmetro que
+  o core usa na busca —, mantendo o dropdown de árvore nativo.
+- **Serviço recursivo não via chamados das entidades filhas**: a busca por categoria
+  exigia `entities_id` **igual** ao do serviço; agora, quando o serviço é
+  `is_recursive`, considera a entidade **e suas descendentes**
+  (`getSonsOf('glpi_entities', …)`).
+- **Categoria do serviço passa a incluir toda a subárvore**: os chamados vinculados por
+  categoria consideram a categoria declarada **e todas as filhas**
+  (`getSonsOf('glpi_itilcategories', …)`, em `categoryTreeIds()`). Um serviço em
+  "Suporte Avançado" passa a somar "Suporte Avançado > Active Directory > Criação /
+  Alteração de GPO". Afeta os relatórios 1, 2 e 4 — valores de hora, tempo de tarefas e
+  a listagem de chamados.
+- **"Receita prevista" não conta mais o valor/hora**: valor/hora é **tarifa**, não
+  receita — só vira dinheiro no extrato, multiplicado pelas horas. O KPI e o gráfico
+  "Top 10 receitas previstas por entidade" somam apenas valores recorrentes (`monthly`,
+  `perclass`, `peruser`), batendo com o dashboard do vReports original.
 - **Aviso explícito no lugar do zero silencioso**: serviço sem "Categoria de chamado" e
-  sem ativos cobertos passa a exibir, na listagem de chamados, a explicação de que não há
-  como vincular chamados (era a causa mais comum de "relatório zerado").
-- **Dashboard financeiro quebrado fora da entidade raiz (corrigido)**: a subconsulta
-  de valores usava `getEntitiesRestrictRequest()` com o **nome da tabela**, mas o
-  `FROM` a aliasa como `ms`. Com a sessão restrita a uma entidade (o caso normal de
-  quem trabalha dentro de um cliente), o SQL gerado referenciava uma coluna
-  inexistente, a consulta falhava e a aba **Dashboards saía em branco** — só o título.
-  Passa a usar o alias. Sem restrição de entidade (raiz vendo tudo) o GLPI não gerava
-  cláusula nenhuma, por isso o bug não aparecia nos testes anteriores.
-- **"Receita prevista" não conta mais o valor/hora**: o valor/hora é uma **tarifa**,
-  não receita — só vira dinheiro no extrato, multiplicado pelas horas de tarefa. KPI e
-  gráfico "Top 10 receitas previstas por entidade" passam a somar apenas os valores
-  recorrentes (`monthly`, `perclass`, `peruser`), batendo com o dashboard do vReports
-  original (serviço só com valor/hora ⇒ R$ 0,00 e gráfico "sem dados").
-- **PDF do Extrato com identidade**: a visão de impressão passa a ter a **logo**
-  (`servicereports/pics/instant-logo.png`, trocável) ancorada à esquerda e o título
-  **centralizado em três linhas** — *Extrato de consumo de serviços* / *Período de X a
-  Y* / *Empresa: <entidade>* —, uma empresa por página (`page-break-before`), sem os
-  botões de CSV/PDF da tela (`renderExtratoPrint()`). O documento sai em **paisagem**
-  (`@page { size: A4 landscape }`), e as colunas de custo não quebram linha.
-- **Bloco do serviço no formato do original**: barra cinza com *Serviço: <nome>* à
-  esquerda e **CUSTO TOTAL** à direita; abaixo, em coluna única, os valores
-  (mensal → ativos → categoria → extras → total das tarefas → *Tempo total de
-  tarefas*) e, ao final, o título *Listagem dos chamados vinculados ao serviço*
-  com a tabela de chamados. O resumo da entidade ganhou a linha **Tempo total de
-  tarefas** (soma dos serviços). Durações desses resumos saem por extenso
-  ("42 horas 0 minutos", via `Html::timestampToString` sem dias).
-- **PDF sem hiperlinks**: o nº do chamado só é link no relatório em tela; no PDF sai
-  como texto (`renderServiceBlock($svc, $print)`).
-- **Listagem de ativos cobertos removida** do Extrato (tela e PDF), a pedido: o dado
-  continua sendo lido para compor os valores, só não é mais exibido.
-- **Extrato financeiro — listagem de chamados no formato do original**: a tabela
-  "Listagem dos chamados vinculados ao serviço" passa a ter **ID, Título, Tipo,
-  Categoria, Req., Abertura, Fechamento, Horas, Custo hora e Custo chamado**
-  (as colunas Status e Custo categoria não entram). "Horas" é o tempo de tarefas **daquele
-  chamado dentro do período** (por `tt.date`), "Custo hora" = horas × valor/hora do
-  serviço e "Custo chamado" a soma — a soma da coluna bate com o "Valor monetário
-  total das tarefas" do serviço. Fechamento usa `closedate` (cai para `solvedate`
-  quando vazio).
-- **Extrato financeiro — nome curto da entidade e texto em negrito**: o cabeçalho de
-  cada entidade passa a exibir só o nome da folha ("Uniletra") em vez do caminho
-  completo ("Instant > Standard > Uniletra"), na tela, no **PDF** e no **CSV** (vale
-  também para o CSV do Faturamento, que reaproveita o mesmo dado). O conteúdo do
-  relatório é renderizado inteiro em **negrito**. O gráfico "Top 10 por entidade" do
-  Dashboard segue com o nome completo.
-- **Paginação de 10 em 10** nos relatórios (`PluginServicereportsPager`, `inc/pager.class.php`):
-  Analistas 57 (tarefas — via `LIMIT/OFFSET`, com os totais calculados sobre o período
-  inteiro) e 59 (horas fora de expediente), e Gestão financeira 1 e 4 (10 serviços por
-  página). Exportações **CSV** e a visão de **impressão/PDF** continuam completas
-  (sem paginação); filtrar volta para a 1ª página.
+  sem ativos cobertos passa a explicar, na listagem, por que não há chamados vinculados
+  — era a causa mais comum de "relatório zerado".
+- **[docs/INSTALL.md](docs/INSTALL.md)**: registra o caminho real do GLPI da Instant
+  (`/var/www/instant/glpi`) e manda conferir a cópia com `ls -l`.
+
+### Alterado — Extrato financeiro (tela e PDF)
+- **Entidade pelo nome curto**: "Uniletra" no lugar de "Instant > Standard > Uniletra",
+  na tela, no PDF e nos CSVs (`entityName()`). O gráfico do Dashboard segue com o nome
+  completo.
+- **Conteúdo do relatório todo em negrito.**
+- **Listagem de chamados no formato do original**: **ID, Título, Tipo, Categoria, Req.,
+  Abertura, Fechamento, Horas, Custo hora, Custo chamado**. "Horas" é o tempo de tarefas
+  **daquele chamado no período** (por `tt.date`), "Custo hora" = horas × valor/hora do
+  serviço, "Custo chamado" a soma — a coluna fecha com o "Valor monetário total das
+  tarefas" do serviço. Fechamento usa `closedate` (cai para `solvedate`).
+- **Bloco do serviço**: barra cinza com *Serviço: <nome>* à esquerda e **CUSTO TOTAL** à
+  direita; abaixo, em coluna única, mensal → ativos → categoria → extras → total das
+  tarefas → *Tempo total de tarefas*; por último, o título *Listagem dos chamados
+  vinculados ao serviço* com a tabela. O resumo da entidade ganhou **Tempo total de
+  tarefas** (soma dos serviços). Essas durações saem por extenso ("42 horas 0 minutos",
+  `Html::timestampToString` sem dias); a coluna Horas da tabela segue em `HH:MM:SS`.
+- **Listagem de ativos cobertos removida** (tela e PDF): o dado continua sendo lido para
+  compor os valores, só não é exibido.
+- **PDF** (`renderExtratoPrint()`): **logo** da Instant
+  (`servicereports/pics/instant-logo.png`, trocável) ancorada à esquerda e título
+  centralizado em três linhas — *Extrato de consumo de serviços* / *Período de X a Y* /
+  *Empresa: <entidade>*; **paisagem** (`@page { size: A4 landscape }`); uma empresa por
+  página; **sem hiperlinks** (o nº do chamado só é link na tela); colunas de custo com
+  `white-space:nowrap`; sem os botões de CSV/PDF da tela.
+
+### Adicionado
+- **Paginação de 10 em 10** (`PluginServicereportsPager`, `inc/pager.class.php`) nos
+  relatórios: Analistas 57 (via `LIMIT/OFFSET`, com os totais do cabeçalho calculados
+  sobre o período inteiro) e 59, e Gestão financeira 1 e 4 (10 serviços por página).
+  **CSV e impressão/PDF nunca paginam**; filtrar volta para a 1ª página.
+- **Analistas › dropdown "Técnico" com todos os técnicos do GLPI** (usuários com o
+  direito `own_ticket`, mesmo critério do "Atribuído a" do core), e não só os com
+  atividade no período. Técnico sem atividade aparece com o cartão zerado, em vez de
+  "nenhum técnico".
+
+## [0.1.0] — 2026-08-13 (não lançado)
 
 Primeira versão funcional dos dois plugins, reconstruídos por engenharia reversa
 da UI web da instância Verdana e **validados num GLPI 10.0.26 local**. Os plugins já

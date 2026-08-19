@@ -49,8 +49,36 @@ Fluxo por mudança:
    `plugin:uninstall managedservices -n`, `plugin:install managedservices --username=glpi`,
    `plugin:activate managedservices`.
 3. Para inspecionar telas, use um navegador apontando para `http://127.0.0.1:8088`.
+4. **Sessão sem digitar senha** (útil para automação): crie um
+   `.testenv/glpi/devlogin.php` (fora do repo) que faz
+   `Session::init()` com um `Auth` marcado como `auth_succeded` e o usuário `glpi`
+   carregado por `getFromDBbyName()`, e redirecione para a tela a testar. Para testar
+   com escopo de entidade, chame `Session::changeActiveEntities($id, false)` ou
+   `Session::changeActiveEntities('all')` antes do redirect.
+5. **Teste sempre nas duas condições de entidade**: raiz vendo tudo *e* sessão restrita a
+   uma entidade filha. Vários bugs (ver `getEntitiesRestrictRequest` abaixo) só aparecem
+   na segunda. Dados de exemplo: `.testenv/seed-test-data.sql`.
+6. Depois de mexer em entidades/categorias **por SQL direto**, rode
+   `php bin/console cache:clear` — o GLPI cacheia as árvores (`sons_cache`) e você pode
+   concluir errado que uma correção não funcionou.
 
 Recriar o ambiente do zero: ver [CHANGELOG.md](CHANGELOG.md) e os comandos acima.
+
+## Deploy em produção (Instant)
+
+O GLPI de produção fica em **`/var/www/instant/glpi`** na VM `vm-glpi-02` — **não** em
+`/var/www/glpi` nem `/var/www/html/glpi`. Atualizar é copiar as pastas do clone e
+recarregar (sem mudança de schema, não reinstale nada):
+
+```bash
+cd /tmp/instant-glpi-plugins && git pull && sudo cp -r managedservices servicereports /var/www/instant/glpi/plugins/ && sudo chown -R www-data:www-data /var/www/instant/glpi/plugins/managedservices /var/www/instant/glpi/plugins/servicereports
+```
+
+**Lição cara (2026-08-19):** três correções seguidas pareceram "não fazer efeito" porque
+o `cp` para o caminho errado falhava com `No such file or directory` enquanto o
+`git pull` rodava normalmente e mascarava o problema. **Sempre confirme a cópia**
+(`ls -l` no arquivo alterado) antes de investigar o código. Se o arquivo estiver certo e
+a tela não mudar, o suspeito seguinte é o **opcache** (`sudo systemctl restart php8.1-fpm`).
 
 ## Armadilhas do GLPI 10 já descobertas (não repita)
 
@@ -99,6 +127,10 @@ Os plugins já rodam em **produção** no GLPI 10 da Instant
   Vale para todas as consultas de tarefa em `Analysts` (já corrigido).
 - No relatório de tarefas, **"Categoria" = categoria do chamado** (`glpi_tickets.itilcategories_id`),
   não `taskcategories_id` (quase sempre vazia). Número do chamado é link.
+- **Dropdown "Técnico"** lista **todos** os técnicos do GLPI via
+  `getAllTechnicians()` (`User::getSqlSearchResult(false, 'own_ticket')`), não só os com
+  atividade no período; `getTechnicians($start,$end)` continua sendo a base dos cartões
+  de performance. Técnico escolhido sem atividade aparece com o cartão zerado.
 - **Export CSV** fica em `front/analysts.php`, antes do `Html::header` (com `exit`). No
   `fputcsv` passe o `$escape` explícito (`''`) — PHP 8.4+ deprecou o default — e rode os
   valores por `html_entity_decode` (o GLPI devolve texto HTML-escapado, ex.: `&#62;`).
@@ -123,6 +155,20 @@ CSV antes do `Html::header` com `exit`).
 - **Categoria do serviço = subárvore inteira**: use `categoryTreeIds()` (baseado em
   `getSonsOf('glpi_itilcategories', $id)`), nunca igualdade simples — um serviço em
   "Suporte Avançado" tem de somar "Suporte Avançado > Active Directory > … > GPO".
+- **Serviço `is_recursive` cobre as entidades filhas**: `linkedTicketIds()` usa
+  `getSonsOf('glpi_entities', …)` nesse caso; sem isso um serviço na entidade-pai não
+  enxerga chamado nenhum das filhas e o extrato sai zerado.
+- **KPIs**: "Receita prevista" (e o gráfico por entidade) somam só valores **recorrentes**
+  (`value_type <> 'hourly'`). Valor/hora é tarifa: vira dinheiro no extrato, multiplicado
+  pelas horas de tarefa.
+- **Tela × PDF**: `renderExtrato()` é a versão de tela (botões CSV/PDF, nº do chamado como
+  link); `renderExtratoPrint()` é a de impressão (logo em `pics/instant-logo.png`, título
+  centralizado em 3 linhas, `@page landscape`, uma empresa por página, **sem links**).
+  Ambas compartilham `renderServiceBlock($svc, $print)` e `renderEntitySummary()`.
+- **Nome da entidade** no extrato é o **curto** (`entityName()`, só a folha) — vale para
+  tela, PDF e CSV. O gráfico do Dashboard segue com o completename.
+- **Durações**: resumos por extenso (`duration()` → `Html::timestampToString(..., false, false)`,
+  em horas, não dias); a coluna Horas da tabela de chamados fica em `HH:MM:SS` (`hms()`).
 - Sem mudança de schema → atualizar é só `sync.sh` + recarregar (não reinstalar).
 
 ## Paginação dos relatórios
@@ -136,11 +182,16 @@ nunca paginam**; os formulários de filtro não enviam `start`, então filtrar v
 
 ## O que falta (Fase 7)
 
-Traduções `.mo` (hoje os textos saem em pt-BR direto pelos `__()`), refino de
-ícones, e o **teste de instalação na VM real** da Instant. Rebuild dos `dist/*.zip`
-antes do deploy. Replicar no repo **GLPI 11** (`instant-glpi11-plugins`) a sub-aba
-Relatórios financeira, a subárvore de categorias, o dropdown com todos os técnicos e a
-paginação, para manter paridade.
+Traduções `.mo` (hoje os textos saem em pt-BR direto pelos `__()`), refino de ícones.
+Rebuild dos `dist/*.zip` antes do deploy (o `zip -rq dist/<plugin>.zip <plugin>` já é o
+suficiente). **Paridade pendente** no repo **GLPI 11** (`instant-glpi11-plugins`): sub-aba
+Relatórios financeira, subárvore de categorias, entidades filhas de serviço recursivo,
+correção do alias na restrição de entidade, dropdown com todos os técnicos, paginação e
+todo o layout novo do Extrato/PDF.
+
+Sem modelo de dados no `managedservices` (e por isso sempre R$ 0,00): **valor por
+categoria de chamado** e **extras relacionados a chamados**. Se a Instant quiser esses
+números de verdade, é preciso criar a dimensão no plugin de Serviços Gerenciados.
 
 ## Referências
 

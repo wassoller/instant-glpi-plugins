@@ -233,21 +233,28 @@ class PluginServicereportsFinancial
     /**
      * IDs de chamados vinculados ao serviço: por categoria do serviço — incluindo
      * as subcategorias (glpi_tickets.itilcategories_id ∈ árvore da categoria) —
-     * e/ou por ativo coberto (glpi_items_tickets).
+     * e/ou por ativo coberto (glpi_items_tickets). A busca por categoria respeita
+     * a entidade do serviço (mais as filhas, se o serviço for recursivo).
      *
      * @return int[]
      */
-    private static function linkedTicketIds(int $sid, int $entity, int $catId): array
+    private static function linkedTicketIds(int $sid, int $entity, int $catId, bool $recursive = false): array
     {
         global $DB;
         $ids = [];
+
+        // Serviço recursivo cobre também as entidades filhas (mesma semântica
+        // do `is_recursive` do GLPI); senão, só a entidade do próprio serviço.
+        $entities = $recursive
+            ? array_map('intval', array_values(getSonsOf('glpi_entities', $entity)))
+            : [$entity];
 
         $cats = self::categoryTreeIds($catId);
         if (!empty($cats)) {
             $res = $DB->request([
                 'SELECT' => 'id',
                 'FROM'   => 'glpi_tickets',
-                'WHERE'  => ['itilcategories_id' => $cats, 'entities_id' => $entity, 'is_deleted' => 0],
+                'WHERE'  => ['itilcategories_id' => $cats, 'entities_id' => $entities, 'is_deleted' => 0],
             ]);
             foreach ($res as $r) {
                 $ids[(int) $r['id']] = true;
@@ -377,7 +384,7 @@ class PluginServicereportsFinancial
 
         $ent = getEntitiesRestrictRequest('AND', self::MS_TABLE);
         $res = $DB->doQuery(
-            "SELECT id, name, entities_id, users_id, itilcategories_id
+            "SELECT id, name, entities_id, is_recursive, users_id, itilcategories_id
              FROM `" . self::MS_TABLE . "`
              WHERE 1 $ent
              ORDER BY entities_id, name"
@@ -393,7 +400,7 @@ class PluginServicereportsFinancial
             $ativos = self::serviceAssetValue($sid);
             $hourly = self::latestScalarValue($sid, 'hourly');
 
-            $linked   = self::linkedTicketIds($sid, $entId, $catId);
+            $linked   = self::linkedTicketIds($sid, $entId, $catId, (bool) $svc['is_recursive']);
             $tickets  = self::ticketsInPeriod($linked, $startDt, $endDt);
             $seconds  = self::taskTime($linked, $startDt, $endDt);
             $taskVal  = $hourly > 0 ? ($seconds / 3600.0) * $hourly : 0.0;
@@ -413,6 +420,7 @@ class PluginServicereportsFinancial
             $byEntity[$entId]['services'][] = [
                 'id'           => $sid,
                 'name'         => (string) $svc['name'],
+                'cat'          => $catId,
                 'mensal'       => $mensal,
                 'ativos'       => $ativos,
                 'categoria'    => $categoria,
@@ -560,6 +568,12 @@ class PluginServicereportsFinancial
         echo "<div class='mt-3'><strong>" . __('Listagem dos chamados vinculados ao serviço', 'servicereports') . "</strong></div>";
         if (empty($svc['tickets'])) {
             echo "<div class='text-muted' style='font-size:.9rem'><i class='ti ti-alert-circle text-warning me-1'></i>" . __('Não há chamados vinculados ao serviço no período', 'servicereports') . "</div>";
+            // Causa mais comum de relatório zerado: não há por onde vincular chamados.
+            if (empty($svc['cat']) && empty($svc['coveredassets'])) {
+                echo "<div class='alert alert-warning mt-2 mb-0' style='font-size:.85rem'><i class='ti ti-info-circle me-1'></i>"
+                    . __('O serviço não tem "Categoria de chamado" definida em Serviços Gerenciados nem ativos cobertos — sem um dos dois não há como vincular chamados, e os valores de hora/tarefa ficam zerados.', 'servicereports')
+                    . "</div>";
+            }
         } else {
             echo "<div class='table-responsive'><table class='table table-sm table-hover mb-0'>";
             echo "<thead><tr><th>" . __('Chamado', 'servicereports') . "</th><th>" . __('Título', 'servicereports') . "</th><th>" . __('Categoria', 'servicereports') . "</th><th>" . __('Data', 'servicereports') . "</th><th>" . __('Status', 'servicereports') . "</th></tr></thead><tbody>";

@@ -18,6 +18,14 @@ próprio no repositório `instant-glpi11-plugins`.
   direito `own_ticket`, mesmo critério do campo "Atribuído a" do core), e não só os que
   tiveram atividade no intervalo de datas. O técnico escolhido sem atividade no período
   agora aparece na aba Técnicos com o cartão zerado, em vez de "nenhum técnico".
+- **Serviço recursivo cobre as entidades filhas**: a busca de chamados por categoria
+  usava `entities_id` **igual** ao do serviço; agora, quando o serviço é `is_recursive`,
+  considera a entidade **e suas descendentes** (`getSonsOf('glpi_entities', …)`). Sem isso
+  um serviço recursivo cadastrado na entidade-pai não via nenhum chamado das filhas e o
+  extrato saía zerado.
+- **Aviso explícito no lugar do zero silencioso**: serviço sem "Categoria de chamado" e
+  sem ativos cobertos passa a exibir, na listagem de chamados, a explicação de que não há
+  como vincular chamados (era a causa mais comum de "relatório zerado").
 - **Paginação de 10 em 10** nos relatórios (`PluginServicereportsPager`, `inc/pager.class.php`):
   Analistas 57 (tarefas — via `LIMIT/OFFSET`, com os totais calculados sobre o período
   inteiro) e 59 (horas fora de expediente), e Gestão financeira 1 e 4 (10 serviços por

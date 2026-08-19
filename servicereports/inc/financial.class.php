@@ -457,7 +457,7 @@ class PluginServicereportsFinancial
             if (!isset($byEntity[$entId])) {
                 $byEntity[$entId] = [
                     'name'     => self::entityName($entId),
-                    'summary'  => ['total' => 0.0, 'fixos' => 0.0, 'categorias' => 0.0, 'hora' => 0.0, 'extras' => 0.0, 'ativos' => 0.0],
+                    'summary'  => ['total' => 0.0, 'fixos' => 0.0, 'categorias' => 0.0, 'hora' => 0.0, 'extras' => 0.0, 'ativos' => 0.0, 'segundos' => 0],
                     'services' => [],
                 ];
             }
@@ -483,6 +483,7 @@ class PluginServicereportsFinancial
             $byEntity[$entId]['summary']['hora']       += $taskVal;
             $byEntity[$entId]['summary']['extras']     += $extras;
             $byEntity[$entId]['summary']['total']      += $total;
+            $byEntity[$entId]['summary']['segundos']   += $seconds;
         }
 
         return $byEntity;
@@ -585,14 +586,7 @@ class PluginServicereportsFinancial
             $s = $ent['summary'];
             echo "<div class='card shadow-sm mb-4'><div class='card-body'>";
             echo "<h4 class='mb-3'>" . __('Detalhamento financeiro da entidade', 'servicereports') . ": <span class='text-primary'>" . $ent['name'] . "</span></h4>";
-            echo "<div class='mb-1'><strong>" . __('Valor monetário total', 'servicereports') . ":</strong> " . self::money($s['total']) . "</div>";
-            echo "<div class='text-muted' style='font-size:.9rem'>";
-            echo "<div>" . __('Somatório dos valores monetários fixos dos serviços contratados', 'servicereports') . ": " . self::money($s['fixos']) . "</div>";
-            echo "<div>" . __('Somatório dos valores monetários das categorias dos serviços contratados', 'servicereports') . ": " . self::money($s['categorias']) . "</div>";
-            echo "<div>" . __('Somatório dos valores monetários de hora dos serviços contratados', 'servicereports') . ": " . self::money($s['hora']) . "</div>";
-            echo "<div>" . __('Somatório dos valores monetários extras relacionados a chamados', 'servicereports') . ": " . self::money($s['extras']) . "</div>";
-            echo "<div>" . __('Somatório dos valores monetários dos ativos', 'servicereports') . ": " . self::money($s['ativos']) . "</div>";
-            echo "</div>";
+            self::renderEntitySummary($s);
 
             foreach ($ent['services'] as $svc) {
                 self::renderServiceBlock($svc);
@@ -600,6 +594,18 @@ class PluginServicereportsFinancial
             echo "</div></div>";
         }
         echo "</div>";
+    }
+
+    /** Resumo financeiro da entidade (mesmo bloco na tela e no PDF). */
+    private static function renderEntitySummary(array $s): void
+    {
+        echo "<div class='mb-1'>" . __('Valor Monetário Total', 'servicereports') . ": " . self::money($s['total']) . "</div>";
+        echo "<div>" . __('Somatório dos valores monetários fixos dos serviços contratados', 'servicereports') . ": " . self::money($s['fixos']) . "</div>";
+        echo "<div>" . __('Somatório dos valores monetários das categorias dos serviços contratados', 'servicereports') . ": " . self::money($s['categorias']) . "</div>";
+        echo "<div>" . __('Somatório dos valores monetários de hora dos serviços contratados', 'servicereports') . ": " . self::money($s['hora']) . "</div>";
+        echo "<div>" . __('Somatório dos valores monetários extras relacionados a chamados', 'servicereports') . ": " . self::money($s['extras']) . "</div>";
+        echo "<div>" . __('Somatório dos valores monetários dos ativos', 'servicereports') . ": " . self::money($s['ativos']) . "</div>";
+        echo "<div>" . __('Tempo total de tarefas', 'servicereports') . ": " . self::duration((int) ($s['segundos'] ?? 0)) . "</div>";
     }
 
     /**
@@ -662,17 +668,10 @@ class PluginServicereportsFinancial
             echo "<div" . ($first ? '' : " style='page-break-before:always'") . ">";
             self::printHeader($ent['name'], $start, $end);
 
-            echo "<div class='mb-1'><strong>" . __('Valor monetário total', 'servicereports') . ":</strong> " . self::money($s['total']) . "</div>";
-            echo "<div style='font-size:.9rem'>";
-            echo "<div>" . __('Somatório dos valores monetários fixos dos serviços contratados', 'servicereports') . ": " . self::money($s['fixos']) . "</div>";
-            echo "<div>" . __('Somatório dos valores monetários das categorias dos serviços contratados', 'servicereports') . ": " . self::money($s['categorias']) . "</div>";
-            echo "<div>" . __('Somatório dos valores monetários de hora dos serviços contratados', 'servicereports') . ": " . self::money($s['hora']) . "</div>";
-            echo "<div>" . __('Somatório dos valores monetários extras relacionados a chamados', 'servicereports') . ": " . self::money($s['extras']) . "</div>";
-            echo "<div>" . __('Somatório dos valores monetários dos ativos', 'servicereports') . ": " . self::money($s['ativos']) . "</div>";
-            echo "</div>";
+            self::renderEntitySummary($s);
 
             foreach ($ent['services'] as $svc) {
-                self::renderServiceBlock($svc);
+                self::renderServiceBlock($svc, true);
             }
             echo "</div>";
             $first = false;
@@ -681,67 +680,84 @@ class PluginServicereportsFinancial
     }
 
     /** Bloco de um serviço dentro do extrato (também usado na fatura/print). */
-    private static function renderServiceBlock(array $svc): void
+    private static function renderServiceBlock(array $svc, bool $print = false): void
     {
         global $CFG_GLPI;
 
-        echo "<div class='border-top mt-3 pt-3'>";
-        echo "<h5 class='mb-2'>" . __('Serviço', 'servicereports') . ": " . $svc['name'] . "</h5>";
-        echo "<div class='row row-cols-1 row-cols-md-2 g-1' style='font-size:.9rem'>";
-        self::kv(__('Valor monetário mensal', 'servicereports'), self::money($svc['mensal']));
-        self::kv(__('Valor monetário de ativos', 'servicereports'), self::money($svc['ativos']));
-        self::kv(__('Valor monetário por categoria de chamado', 'servicereports'), self::money($svc['categoria']));
-        self::kv(__('Valor monetário extras relacionados a chamados', 'servicereports'), self::money($svc['extras']));
-        self::kv(__('Tempo total de tarefas', 'servicereports'), self::hms($svc['task_seconds']));
-        self::kv(__('Valor monetário total das tarefas', 'servicereports'), self::money($svc['task_value']));
+        // Barra do serviço: nome à esquerda, custo total à direita.
+        echo "<div class='mt-4'>";
+        echo "<div style='background:#e9e9e9;padding:6px 10px;display:flex;justify-content:space-between;gap:12px'>";
+        echo "<span>" . __('Serviço', 'servicereports') . ": " . $svc['name'] . "</span>";
+        echo "<span style='white-space:nowrap'>" . __('CUSTO TOTAL', 'servicereports') . ": " . self::money($svc['total']) . "</span>";
         echo "</div>";
-        echo "<div class='mt-1'><strong>" . __('Valor monetário total', 'servicereports') . ":</strong> " . self::money($svc['total']) . "</div>";
 
-        // (A listagem de ativos cobertos saiu do relatório a pedido do cliente;
-        //  o dado continua em $svc['coveredassets'] para o cálculo dos valores.)
+        // Valor mensal, a listagem de chamados e o restante dos valores — nesta ordem.
+        echo "<div style='padding:6px 10px'>" . __('Valor monetário mensal', 'servicereports') . ": " . self::money($svc['mensal']) . "</div>";
 
-        // Chamados vinculados
-        echo "<div class='mt-3'><strong>" . __('Listagem dos chamados vinculados ao serviço', 'servicereports') . "</strong></div>";
+        self::renderTicketList($svc, $print);
+
+        echo "<div style='padding:0 10px'>";
+        echo "<div>" . __('Valor monetário de ativos', 'servicereports') . ": " . self::money($svc['ativos']) . "</div>";
+        echo "<div>" . __('Valor monetário total por categoria de chamado', 'servicereports') . ": " . self::money($svc['categoria']) . "</div>";
+        echo "<div>" . __('Valor monetário extras relacionados a chamados', 'servicereports') . ": " . self::money($svc['extras']) . "</div>";
+        echo "<div>" . __('Valor monetário total das tarefas', 'servicereports') . ": " . self::money($svc['task_value']) . "</div>";
+        echo "<div>" . __('Tempo total de tarefas', 'servicereports') . ": " . self::duration((int) $svc['task_seconds']) . "</div>";
+        echo "</div>";
+        echo "</div>";
+    }
+
+    /** Listagem dos chamados vinculados ao serviço (nº vira link só fora do PDF). */
+    private static function renderTicketList(array $svc, bool $print = false): void
+    {
+        global $CFG_GLPI;
+
+        echo "<div style='padding:0 10px'><strong>" . __('Listagem dos chamados vinculados ao serviço', 'servicereports') . "</strong></div>";
+
         if (empty($svc['tickets'])) {
-            echo "<div class='text-muted' style='font-size:.9rem'><i class='ti ti-alert-circle text-warning me-1'></i>" . __('Não há chamados vinculados ao serviço no período', 'servicereports') . "</div>";
+            echo "<div style='padding:0 10px;font-size:.9rem'><i class='ti ti-alert-circle text-warning me-1'></i>" . __('Não há chamados vinculados ao serviço no período', 'servicereports') . "</div>";
             // Causa mais comum de relatório zerado: não há por onde vincular chamados.
             if (empty($svc['cat']) && empty($svc['coveredassets'])) {
-                echo "<div class='alert alert-warning mt-2 mb-0' style='font-size:.85rem'><i class='ti ti-info-circle me-1'></i>"
+                echo "<div class='alert alert-warning mt-2 mb-2' style='font-size:.85rem'><i class='ti ti-info-circle me-1'></i>"
                     . __('O serviço não tem "Categoria de chamado" definida em Serviços Gerenciados nem ativos cobertos — sem um dos dois não há como vincular chamados, e os valores de hora/tarefa ficam zerados.', 'servicereports')
                     . "</div>";
             }
-        } else {
-            echo "<div class='table-responsive'><table class='table table-sm table-hover mb-0'>";
-            echo "<thead><tr>"
-                . "<th>" . __('ID', 'servicereports') . "</th>"
-                . "<th>" . __('Título', 'servicereports') . "</th>"
-                . "<th>" . __('Tipo', 'servicereports') . "</th>"
-                . "<th>" . __('Categoria', 'servicereports') . "</th>"
-                . "<th>" . __('Req.', 'servicereports') . "</th>"
-                . "<th>" . __('Abertura', 'servicereports') . "</th>"
-                . "<th>" . __('Fechamento', 'servicereports') . "</th>"
-                . "<th class='text-end'>" . __('Horas', 'servicereports') . "</th>"
-                . "<th class='text-end' style='white-space:nowrap'>" . __('Custo hora', 'servicereports') . "</th>"
-                . "<th class='text-end' style='white-space:nowrap'>" . __('Custo chamado', 'servicereports') . "</th>"
-                . "</tr></thead><tbody>";
-            foreach ($svc['tickets'] as $t) {
-                $url = $CFG_GLPI['root_doc'] . '/front/ticket.form.php?id=' . $t['id'];
-                echo "<tr>";
-                echo "<td><a href='" . Html::cleanInputText($url) . "'>" . $t['id'] . "</a></td>";
-                echo "<td>" . $t['name'] . "</td>";
-                echo "<td>" . Ticket::getTicketTypeName($t['type']) . "</td>";
-                echo "<td>" . ($t['cat'] ? Dropdown::getDropdownName('glpi_itilcategories', $t['cat']) : '-') . "</td>";
-                echo "<td>" . ($t['requester'] !== '' ? $t['requester'] : '-') . "</td>";
-                echo "<td>" . Html::convDateTime($t['date']) . "</td>";
-                echo "<td>" . ($t['closedate'] !== '' ? Html::convDateTime($t['closedate']) : '-') . "</td>";
-                echo "<td class='text-end'>" . self::hms((int) $t['seconds']) . "</td>";
-                echo "<td class='text-end' style='white-space:nowrap'>" . self::money((float) $t['cost_hour']) . "</td>";
-                echo "<td class='text-end' style='white-space:nowrap'>" . self::money((float) $t['cost_total']) . "</td>";
-                echo "</tr>";
-            }
-            echo "</tbody></table></div>";
+            return;
         }
-        echo "</div>";
+
+        echo "<div class='table-responsive'><table class='table table-sm table-hover mb-2'>";
+        echo "<thead><tr>"
+            . "<th>" . __('ID', 'servicereports') . "</th>"
+            . "<th>" . __('Título', 'servicereports') . "</th>"
+            . "<th>" . __('Tipo', 'servicereports') . "</th>"
+            . "<th>" . __('Categoria', 'servicereports') . "</th>"
+            . "<th>" . __('Req.', 'servicereports') . "</th>"
+            . "<th>" . __('Abertura', 'servicereports') . "</th>"
+            . "<th>" . __('Fechamento', 'servicereports') . "</th>"
+            . "<th class='text-end'>" . __('Horas', 'servicereports') . "</th>"
+            . "<th class='text-end' style='white-space:nowrap'>" . __('Custo hora', 'servicereports') . "</th>"
+            . "<th class='text-end' style='white-space:nowrap'>" . __('Custo chamado', 'servicereports') . "</th>"
+            . "</tr></thead><tbody>";
+        foreach ($svc['tickets'] as $t) {
+            echo "<tr>";
+            if ($print) {
+                // No PDF o nº do chamado sai como texto (link não serve no papel).
+                echo "<td>" . $t['id'] . "</td>";
+            } else {
+                $url = $CFG_GLPI['root_doc'] . '/front/ticket.form.php?id=' . $t['id'];
+                echo "<td><a href='" . Html::cleanInputText($url) . "'>" . $t['id'] . "</a></td>";
+            }
+            echo "<td>" . $t['name'] . "</td>";
+            echo "<td>" . Ticket::getTicketTypeName($t['type']) . "</td>";
+            echo "<td>" . ($t['cat'] ? Dropdown::getDropdownName('glpi_itilcategories', $t['cat']) : '-') . "</td>";
+            echo "<td>" . ($t['requester'] !== '' ? $t['requester'] : '-') . "</td>";
+            echo "<td>" . Html::convDateTime($t['date']) . "</td>";
+            echo "<td>" . ($t['closedate'] !== '' ? Html::convDateTime($t['closedate']) : '-') . "</td>";
+            echo "<td class='text-end'>" . self::hms((int) $t['seconds']) . "</td>";
+            echo "<td class='text-end' style='white-space:nowrap'>" . self::money((float) $t['cost_hour']) . "</td>";
+            echo "<td class='text-end' style='white-space:nowrap'>" . self::money((float) $t['cost_total']) . "</td>";
+            echo "</tr>";
+        }
+        echo "</tbody></table></div>";
     }
 
     private static function kv(string $k, string $v): void
@@ -832,6 +848,15 @@ class PluginServicereportsFinancial
     public static function money(float $v): string
     {
         return 'R$ ' . number_format($v, 2, ',', '.');
+    }
+
+    /**
+     * Segundos por extenso ("42 horas 0 minutos"), como no relatório original.
+     * `use_days = false`: num extrato de serviços conta-se em horas, não em dias.
+     */
+    public static function duration(int $seconds): string
+    {
+        return Html::timestampToString(max(0, $seconds), false, false);
     }
 
     /** Segundos → HH:MM:SS. */

@@ -411,7 +411,7 @@ class PluginServicereportsFinancial
 
             if (!isset($byEntity[$entId])) {
                 $byEntity[$entId] = [
-                    'name'     => Dropdown::getDropdownName('glpi_entities', $entId),
+                    'name'     => self::entityName($entId),
                     'summary'  => ['total' => 0.0, 'fixos' => 0.0, 'categorias' => 0.0, 'hora' => 0.0, 'extras' => 0.0, 'ativos' => 0.0],
                     'services' => [],
                 ];
@@ -441,6 +441,24 @@ class PluginServicereportsFinancial
         }
 
         return $byEntity;
+    }
+
+    /**
+     * Nome **curto** da entidade (só a folha, sem a árvore de pais).
+     * O `Dropdown::getDropdownName` devolveria o completename
+     * ("Instant > Standard > Uniletra"); no extrato queremos só "Uniletra".
+     */
+    public static function entityName(int $entityId): string
+    {
+        global $DB;
+
+        if ($entityId <= 0) {
+            // Entidade raiz: deixa o core resolver (nome traduzido).
+            return Dropdown::getDropdownName('glpi_entities', $entityId);
+        }
+        $row  = $DB->request(['SELECT' => 'name', 'FROM' => 'glpi_entities', 'WHERE' => ['id' => $entityId]])->current();
+        $name = (string) ($row['name'] ?? '');
+        return $name !== '' ? $name : Dropdown::getDropdownName('glpi_entities', $entityId);
     }
 
     /** Nº total de serviços do extrato (base da paginação). */
@@ -502,6 +520,9 @@ class PluginServicereportsFinancial
      */
     public static function renderExtrato(array $extrato, string $exportCsvUrl, string $pdfUrl): void
     {
+        // Tela inteira em negrito (pedido do cliente): envolve título, resumo da
+        // entidade e os blocos de serviço — vale também na visão de impressão/PDF.
+        echo "<div class='sr-extrato' style='font-weight:bold'>";
         echo "<div class='text-center mb-3'><h3 class='mb-0'>" . __('Extrato financeiro detalhado', 'servicereports') . "</h3></div>";
 
         echo "<div class='d-flex justify-content-end gap-2 mb-3'>";
@@ -511,6 +532,7 @@ class PluginServicereportsFinancial
 
         if (empty($extrato)) {
             echo "<div class='alert alert-info'>" . __('Nenhum serviço encontrado para o período.', 'servicereports') . "</div>";
+            echo "</div>";
             return;
         }
 
@@ -532,6 +554,7 @@ class PluginServicereportsFinancial
             }
             echo "</div></div>";
         }
+        echo "</div>";
     }
 
     /** Bloco de um serviço dentro do extrato (também usado na fatura/print). */

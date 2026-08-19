@@ -33,6 +33,12 @@ próprio no repositório `instant-glpi11-plugins`.
 - **Aviso explícito no lugar do zero silencioso**: serviço sem "Categoria de chamado" e
   sem ativos cobertos passa a exibir, na listagem de chamados, a explicação de que não há
   como vincular chamados (era a causa mais comum de "relatório zerado").
+- **Extrato financeiro — nome curto da entidade e texto em negrito**: o cabeçalho de
+  cada entidade passa a exibir só o nome da folha ("Uniletra") em vez do caminho
+  completo ("Instant > Standard > Uniletra"), na tela, no **PDF** e no **CSV** (vale
+  também para o CSV do Faturamento, que reaproveita o mesmo dado). O conteúdo do
+  relatório é renderizado inteiro em **negrito**. O gráfico "Top 10 por entidade" do
+  Dashboard segue com o nome completo.
 - **Paginação de 10 em 10** nos relatórios (`PluginServicereportsPager`, `inc/pager.class.php`):
   Analistas 57 (tarefas — via `LIMIT/OFFSET`, com os totais calculados sobre o período
   inteiro) e 59 (horas fora de expediente), e Gestão financeira 1 e 4 (10 serviços por

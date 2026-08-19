@@ -184,10 +184,11 @@ nunca paginam**; os formulários de filtro não enviam `start`, então filtrar v
 
 Traduções `.mo` (hoje os textos saem em pt-BR direto pelos `__()`), refino de ícones.
 Rebuild dos `dist/*.zip` antes do deploy (o `zip -rq dist/<plugin>.zip <plugin>` já é o
-suficiente). **Paridade pendente** no repo **GLPI 11** (`instant-glpi11-plugins`): sub-aba
-Relatórios financeira, subárvore de categorias, entidades filhas de serviço recursivo,
-correção do alias na restrição de entidade, dropdown com todos os técnicos, paginação e
-todo o layout novo do Extrato/PDF.
+suficiente). A **paridade com o repo GLPI 11** (`instant-glpi11-plugins`) está **em dia**
+desde 2026-08-19 (versão 0.2.0 lá também) — ao mexer na lógica aqui, porte lá na
+sequência. Detalhe do port: no GLPI 11 os assets estáticos do plugin ficam em
+`<plugin>/public/` (a logo do PDF virou `servicereports/public/pics/instant-logo.png`);
+aqui continuam em `pics/`.
 
 Sem modelo de dados no `managedservices` (e por isso sempre R$ 0,00): **valor por
 categoria de chamado** e **extras relacionados a chamados**. Se a Instant quiser esses

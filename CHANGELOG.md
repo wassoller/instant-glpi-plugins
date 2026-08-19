@@ -81,6 +81,9 @@ copiar os arquivos e recarregar.
   atividade no período. Técnico sem atividade aparece com o cartão zerado, em vez de
   "nenhum técnico".
 
+> **Paridade:** a versão GLPI 11 (`instant-glpi11-plugins`) recebeu esta mesma rodada
+> na sua `0.2.0`, em 2026-08-19.
+
 ## [0.1.0] — 2026-08-13 (não lançado)
 
 Primeira versão funcional dos dois plugins, reconstruídos por engenharia reversa

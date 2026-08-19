@@ -46,10 +46,13 @@ próprio no repositório `instant-glpi11-plugins`.
   recorrentes (`monthly`, `perclass`, `peruser`), batendo com o dashboard do vReports
   original (serviço só com valor/hora ⇒ R$ 0,00 e gráfico "sem dados").
 - **PDF do Extrato com identidade**: a visão de impressão passa a ter a **logo**
-  (`servicereports/pics/instant-logo.png`, trocável) discreta à esquerda e o título
-  *"Extrato de consumo de serviços no período de X a Y"* + *"Empresa: <entidade>"*,
-  uma empresa por página (`page-break-before`), sem os botões de CSV/PDF da tela
-  (`renderExtratoPrint()`).
+  (`servicereports/pics/instant-logo.png`, trocável) ancorada à esquerda e o título
+  **centralizado em três linhas** — *Extrato de consumo de serviços* / *Período de X a
+  Y* / *Empresa: <entidade>* —, uma empresa por página (`page-break-before`), sem os
+  botões de CSV/PDF da tela (`renderExtratoPrint()`). O documento sai em **paisagem**
+  (`@page { size: A4 landscape }`), e as colunas de custo não quebram linha.
+- **Listagem de ativos cobertos removida** do Extrato (tela e PDF), a pedido: o dado
+  continua sendo lido para compor os valores, só não é mais exibido.
 - **Extrato financeiro — listagem de chamados no formato do original**: a tabela
   "Listagem dos chamados vinculados ao serviço" passa a ter **ID, Título, Tipo,
   Categoria, Req., Abertura, Fechamento, Horas, Custo hora e Custo chamado**

@@ -623,13 +623,15 @@ class PluginServicereportsFinancial
     {
         $logo = self::logoUrl();
 
-        echo "<div style='display:flex;align-items:center;gap:16px;margin-bottom:24px'>";
+        // Logo ancorada à esquerda; título centralizado na página.
+        echo "<div style='position:relative;min-height:60px;margin-bottom:24px'>";
         if ($logo !== '') {
-            echo "<img src='" . Html::cleanInputText($logo) . "' alt='' style='height:56px;width:auto;flex:0 0 auto'>";
+            echo "<img src='" . Html::cleanInputText($logo) . "' alt='' style='position:absolute;left:0;top:0;height:56px;width:auto'>";
         }
-        echo "<div>";
-        echo "<div style='font-size:1.05rem'>" . sprintf(
-            __('Extrato de consumo de serviços no período de %1$s a %2$s', 'servicereports'),
+        echo "<div style='text-align:center'>";
+        echo "<div style='font-size:1.15rem'>" . __('Extrato de consumo de serviços', 'servicereports') . "</div>";
+        echo "<div>" . sprintf(
+            __('Período de %1$s a %2$s', 'servicereports'),
             Html::convDate($start),
             Html::convDate($end)
         ) . "</div>";
@@ -643,6 +645,8 @@ class PluginServicereportsFinancial
      */
     public static function renderExtratoPrint(array $extrato, string $start, string $end): void
     {
+        // Paisagem: a listagem de chamados tem 10 colunas e não cabe em retrato.
+        echo "<style>@page { size: A4 landscape; margin: 10mm; }</style>";
         echo "<div class='sr-extrato' style='font-weight:bold'>";
 
         if (empty($extrato)) {
@@ -693,18 +697,8 @@ class PluginServicereportsFinancial
         echo "</div>";
         echo "<div class='mt-1'><strong>" . __('Valor monetário total', 'servicereports') . ":</strong> " . self::money($svc['total']) . "</div>";
 
-        // Ativos cobertos
-        echo "<div class='mt-3'><strong>" . __('Detalhamento dos ativos cobertos pelo serviço', 'servicereports') . "</strong></div>";
-        if (empty($svc['coveredassets'])) {
-            echo "<div class='text-muted' style='font-size:.9rem'><i class='ti ti-alert-circle text-warning me-1'></i>" . __('Não há ativos cobertos pelo serviço', 'servicereports') . "</div>";
-        } else {
-            echo "<div class='table-responsive'><table class='table table-sm table-hover mb-0'>";
-            echo "<thead><tr><th>" . __('Tipo', 'servicereports') . "</th><th>" . __('Ativo', 'servicereports') . "</th><th>" . __('Data de entrada em contrato', 'servicereports') . "</th></tr></thead><tbody>";
-            foreach ($svc['coveredassets'] as $a) {
-                echo "<tr><td>" . $a['typename'] . "</td><td>" . $a['name'] . "</td><td>" . ($a['entry_date'] ? Html::convDate($a['entry_date']) : '-') . "</td></tr>";
-            }
-            echo "</tbody></table></div>";
-        }
+        // (A listagem de ativos cobertos saiu do relatório a pedido do cliente;
+        //  o dado continua em $svc['coveredassets'] para o cálculo dos valores.)
 
         // Chamados vinculados
         echo "<div class='mt-3'><strong>" . __('Listagem dos chamados vinculados ao serviço', 'servicereports') . "</strong></div>";
@@ -727,8 +721,8 @@ class PluginServicereportsFinancial
                 . "<th>" . __('Abertura', 'servicereports') . "</th>"
                 . "<th>" . __('Fechamento', 'servicereports') . "</th>"
                 . "<th class='text-end'>" . __('Horas', 'servicereports') . "</th>"
-                . "<th class='text-end'>" . __('Custo hora', 'servicereports') . "</th>"
-                . "<th class='text-end'>" . __('Custo chamado', 'servicereports') . "</th>"
+                . "<th class='text-end' style='white-space:nowrap'>" . __('Custo hora', 'servicereports') . "</th>"
+                . "<th class='text-end' style='white-space:nowrap'>" . __('Custo chamado', 'servicereports') . "</th>"
                 . "</tr></thead><tbody>";
             foreach ($svc['tickets'] as $t) {
                 $url = $CFG_GLPI['root_doc'] . '/front/ticket.form.php?id=' . $t['id'];
@@ -741,8 +735,8 @@ class PluginServicereportsFinancial
                 echo "<td>" . Html::convDateTime($t['date']) . "</td>";
                 echo "<td>" . ($t['closedate'] !== '' ? Html::convDateTime($t['closedate']) : '-') . "</td>";
                 echo "<td class='text-end'>" . self::hms((int) $t['seconds']) . "</td>";
-                echo "<td class='text-end'>" . self::money((float) $t['cost_hour']) . "</td>";
-                echo "<td class='text-end'>" . self::money((float) $t['cost_total']) . "</td>";
+                echo "<td class='text-end' style='white-space:nowrap'>" . self::money((float) $t['cost_hour']) . "</td>";
+                echo "<td class='text-end' style='white-space:nowrap'>" . self::money((float) $t['cost_total']) . "</td>";
                 echo "</tr>";
             }
             echo "</tbody></table></div>";

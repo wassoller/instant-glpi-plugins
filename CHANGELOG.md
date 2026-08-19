@@ -52,9 +52,10 @@ próprio no repositório `instant-glpi11-plugins`.
   botões de CSV/PDF da tela (`renderExtratoPrint()`). O documento sai em **paisagem**
   (`@page { size: A4 landscape }`), e as colunas de custo não quebram linha.
 - **Bloco do serviço no formato do original**: barra cinza com *Serviço: <nome>* à
-  esquerda e **CUSTO TOTAL** à direita; abaixo, em coluna única, *valor mensal* →
-  **listagem de chamados** → ativos → categoria → extras → total das tarefas →
-  *Tempo total de tarefas*. O resumo da entidade ganhou a linha **Tempo total de
+  esquerda e **CUSTO TOTAL** à direita; abaixo, em coluna única, os valores
+  (mensal → ativos → categoria → extras → total das tarefas → *Tempo total de
+  tarefas*) e, ao final, o título *Listagem dos chamados vinculados ao serviço*
+  com a tabela de chamados. O resumo da entidade ganhou a linha **Tempo total de
   tarefas** (soma dos serviços). Durações desses resumos saem por extenso
   ("42 horas 0 minutos", via `Html::timestampToString` sem dias).
 - **PDF sem hiperlinks**: o nº do chamado só é link no relatório em tela; no PDF sai

@@ -691,18 +691,17 @@ class PluginServicereportsFinancial
         echo "<span style='white-space:nowrap'>" . __('CUSTO TOTAL', 'servicereports') . ": " . self::money($svc['total']) . "</span>";
         echo "</div>";
 
-        // Valor mensal, a listagem de chamados e o restante dos valores — nesta ordem.
-        echo "<div style='padding:6px 10px'>" . __('Valor monetário mensal', 'servicereports') . ": " . self::money($svc['mensal']) . "</div>";
-
-        self::renderTicketList($svc, $print);
-
-        echo "<div style='padding:0 10px'>";
+        // Valores do serviço em coluna única e, ao final, a listagem de chamados.
+        echo "<div style='padding:6px 10px'>";
+        echo "<div>" . __('Valor monetário mensal', 'servicereports') . ": " . self::money($svc['mensal']) . "</div>";
         echo "<div>" . __('Valor monetário de ativos', 'servicereports') . ": " . self::money($svc['ativos']) . "</div>";
         echo "<div>" . __('Valor monetário total por categoria de chamado', 'servicereports') . ": " . self::money($svc['categoria']) . "</div>";
         echo "<div>" . __('Valor monetário extras relacionados a chamados', 'servicereports') . ": " . self::money($svc['extras']) . "</div>";
         echo "<div>" . __('Valor monetário total das tarefas', 'servicereports') . ": " . self::money($svc['task_value']) . "</div>";
         echo "<div>" . __('Tempo total de tarefas', 'servicereports') . ": " . self::duration((int) $svc['task_seconds']) . "</div>";
         echo "</div>";
+
+        self::renderTicketList($svc, $print);
         echo "</div>";
     }
 

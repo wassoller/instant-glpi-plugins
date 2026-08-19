@@ -69,6 +69,10 @@ Recriar o ambiente do zero: ver [CHANGELOG.md](CHANGELOG.md) e os comandos acima
   próprio — use `font-size` inline.
 - DB: `$DB->doQuery()`, `new Migration(VERSION)` + `executeMigration()`,
   `$DB->tableExists()`.
+- `getEntitiesRestrictRequest('AND', $x)`: `$x` tem de ser **o nome usado na consulta**
+  — se o `FROM` aliasa a tabela (`FROM tabela ms`), passe o **alias**. Com sessão na
+  entidade raiz vendo tudo o GLPI devolve string vazia e o erro **não aparece**; ele só
+  surge quando a sessão está restrita a uma entidade. Teste sempre nas duas situações.
 
 ## Acoplamento
 

@@ -33,6 +33,18 @@ próprio no repositório `instant-glpi11-plugins`.
 - **Aviso explícito no lugar do zero silencioso**: serviço sem "Categoria de chamado" e
   sem ativos cobertos passa a exibir, na listagem de chamados, a explicação de que não há
   como vincular chamados (era a causa mais comum de "relatório zerado").
+- **Dashboard financeiro quebrado fora da entidade raiz (corrigido)**: a subconsulta
+  de valores usava `getEntitiesRestrictRequest()` com o **nome da tabela**, mas o
+  `FROM` a aliasa como `ms`. Com a sessão restrita a uma entidade (o caso normal de
+  quem trabalha dentro de um cliente), o SQL gerado referenciava uma coluna
+  inexistente, a consulta falhava e a aba **Dashboards saía em branco** — só o título.
+  Passa a usar o alias. Sem restrição de entidade (raiz vendo tudo) o GLPI não gerava
+  cláusula nenhuma, por isso o bug não aparecia nos testes anteriores.
+- **"Receita prevista" não conta mais o valor/hora**: o valor/hora é uma **tarifa**,
+  não receita — só vira dinheiro no extrato, multiplicado pelas horas de tarefa. KPI e
+  gráfico "Top 10 receitas previstas por entidade" passam a somar apenas os valores
+  recorrentes (`monthly`, `perclass`, `peruser`), batendo com o dashboard do vReports
+  original (serviço só com valor/hora ⇒ R$ 0,00 e gráfico "sem dados").
 - **PDF do Extrato com identidade**: a visão de impressão passa a ter a **logo**
   (`servicereports/pics/instant-logo.png`, trocável) discreta à esquerda e o título
   *"Extrato de consumo de serviços no período de X a Y"* + *"Empresa: <entidade>"*,

@@ -40,7 +40,10 @@ class PluginServicereportsFinancial
     {
         $ms  = self::MS_TABLE;
         $fv  = self::FV_TABLE;
-        $ent = getEntitiesRestrictRequest('AND', $ms);
+        // A restrição precisa referenciar o **alias** `ms` (e não o nome da tabela):
+        // com a sessão restrita a uma entidade o GLPI gera `tabela`.`entities_id`,
+        // que não existe na consulta aliasada — e a query inteira falhava.
+        $ent = getEntitiesRestrictRequest('AND', 'ms');
         return "SELECT fv.*, ms.entities_id AS ms_entity, ms.users_id AS ms_client,
                        ROW_NUMBER() OVER (
                            PARTITION BY fv.plugin_managedservices_managedservices_id, fv.value_type, fv.itemtype, fv.items_id, fv.users_id
@@ -74,7 +77,10 @@ class PluginServicereportsFinancial
         $ent = getEntitiesRestrictRequest('AND', $ms);
         $latest = self::latestValuesSql();
 
-        $receitaPrevista = self::scalar("SELECT COALESCE(SUM(value),0) AS v FROM ($latest) l WHERE rn=1");
+        // Receita prevista = valores recorrentes (mensal, por classe de ativo, por
+        // usuário). O valor/hora é uma tarifa, não receita — só vira dinheiro no
+        // extrato, multiplicado pelas horas de tarefa; fica de fora aqui.
+        $receitaPrevista = self::scalar("SELECT COALESCE(SUM(value),0) AS v FROM ($latest) l WHERE rn=1 AND value_type <> 'hourly'");
         $receitaMensal   = self::scalar("SELECT COALESCE(SUM(value),0) AS v FROM ($latest) l WHERE rn=1 AND value_type='monthly'");
         $mediaMensal     = self::scalar("SELECT COALESCE(AVG(value),0) AS v FROM ($latest) l WHERE rn=1 AND value_type='monthly'");
         $receitaAtivos   = self::scalar("SELECT COALESCE(SUM(value),0) AS v FROM ($latest) l WHERE rn=1 AND value_type='perclass'");
@@ -101,7 +107,7 @@ class PluginServicereportsFinancial
         global $DB;
         $latest = self::latestValuesSql();
         $sql = "SELECT ms_entity AS entity, SUM(value) AS total
-                FROM ($latest) l WHERE rn=1
+                FROM ($latest) l WHERE rn=1 AND value_type <> 'hourly'
                 GROUP BY ms_entity ORDER BY total DESC LIMIT 10";
         $out = [];
         foreach ($DB->request($sql) as $row) {

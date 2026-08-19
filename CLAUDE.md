@@ -58,9 +58,13 @@ Recriar o ambiente do zero: ver [CHANGELOG.md](CHANGELOG.md) e os comandos acima
   `displayTabContentForItem()` é `static`.
 - Dropdown **múltiplo** (`User::dropdown`/`Group::dropdown`/`Dropdown::show`):
   passe **`'value' => $array`**, não `'values'` (o GLPI faz `values = value`).
-- Dropdown de **árvore** (`ITILCategory`, `Location`, …): sem
-  **`'permit_select_parent' => true`** o GLPI marca as categorias-pai como `disabled`
-  (viram só rótulo da hierarquia) e o usuário não consegue escolhê-las.
+- Dropdown de **árvore** (`ITILCategory`, `Location`, …): o GLPI marca as categorias-pai
+  como `disabled` (viram só rótulo da hierarquia) e exibe só o nome da folha, o que
+  torna homônimas indistinguíveis. `'permit_select_parent' => true` resolve (a); para
+  resolver os dois de uma vez, monte uma **lista plana pelo `completename`** com
+  `Dropdown::showFromArray` — foi o que o campo "Categoria de chamado" do
+  `managedservices` passou a fazer (`getCategoryOptions()`). Lembre de rodar o
+  `completename` por `html_entity_decode` (o separador vem como `&#62;`).
 - Menu em seção do core: `$PLUGIN_HOOKS['menu_toadd'][$key] = ['assets' => Classe]`
   (ou `'management'`).
 - A classe utilitária `.small` do tema quebra texto (largura mínima) em HTML

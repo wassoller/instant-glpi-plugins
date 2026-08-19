@@ -33,15 +33,19 @@ próprio no repositório `instant-glpi11-plugins`.
 - **Aviso explícito no lugar do zero silencioso**: serviço sem "Categoria de chamado" e
   sem ativos cobertos passa a exibir, na listagem de chamados, a explicação de que não há
   como vincular chamados (era a causa mais comum de "relatório zerado").
+- **PDF do Extrato com identidade**: a visão de impressão passa a ter a **logo**
+  (`servicereports/pics/instant-logo.png`, trocável) discreta à esquerda e o título
+  *"Extrato de consumo de serviços no período de X a Y"* + *"Empresa: <entidade>"*,
+  uma empresa por página (`page-break-before`), sem os botões de CSV/PDF da tela
+  (`renderExtratoPrint()`).
 - **Extrato financeiro — listagem de chamados no formato do original**: a tabela
   "Listagem dos chamados vinculados ao serviço" passa a ter **ID, Título, Tipo,
-  Categoria, Req., Abertura, Fechamento, Horas, Custo hora, Custo categoria e
-  Custo chamado** (a coluna Status saiu). "Horas" é o tempo de tarefas **daquele
+  Categoria, Req., Abertura, Fechamento, Horas, Custo hora e Custo chamado**
+  (as colunas Status e Custo categoria não entram). "Horas" é o tempo de tarefas **daquele
   chamado dentro do período** (por `tt.date`), "Custo hora" = horas × valor/hora do
   serviço e "Custo chamado" a soma — a soma da coluna bate com o "Valor monetário
-  total das tarefas" do serviço. "Custo categoria" fica R$ 0,00 (sem modelo de dados
-  no `managedservices`, mesma ressalva dos outros campos de categoria). Fechamento usa
-  `closedate` (cai para `solvedate` quando vazio).
+  total das tarefas" do serviço. Fechamento usa `closedate` (cai para `solvedate`
+  quando vazio).
 - **Extrato financeiro — nome curto da entidade e texto em negrito**: o cabeçalho de
   cada entidade passa a exibir só o nome da folha ("Uniletra") em vez do caminho
   completo ("Instant > Standard > Uniletra"), na tela, no **PDF** e no **CSV** (vale

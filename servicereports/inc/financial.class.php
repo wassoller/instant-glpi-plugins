@@ -596,6 +596,80 @@ class PluginServicereportsFinancial
         echo "</div>";
     }
 
+    /**
+     * URL da logo usada no cabeçalho do PDF (vazio se o arquivo não existir).
+     * Basta trocar `pics/instant-logo.png` para personalizar.
+     */
+    private static function logoUrl(): string
+    {
+        global $CFG_GLPI;
+
+        foreach (['instant-logo.png', 'logo.png', 'logo.jpg', 'logo.svg'] as $file) {
+            if (file_exists(GLPI_ROOT . '/plugins/servicereports/pics/' . $file)) {
+                return $CFG_GLPI['root_doc'] . '/plugins/servicereports/pics/' . $file;
+            }
+        }
+        return '';
+    }
+
+    /** Cabeçalho do PDF: logo discreta à esquerda + título e empresa. */
+    private static function printHeader(string $entityName, string $start, string $end): void
+    {
+        $logo = self::logoUrl();
+
+        echo "<div style='display:flex;align-items:center;gap:16px;margin-bottom:24px'>";
+        if ($logo !== '') {
+            echo "<img src='" . Html::cleanInputText($logo) . "' alt='' style='height:56px;width:auto;flex:0 0 auto'>";
+        }
+        echo "<div>";
+        echo "<div style='font-size:1.05rem'>" . sprintf(
+            __('Extrato de consumo de serviços no período de %1$s a %2$s', 'servicereports'),
+            Html::convDate($start),
+            Html::convDate($end)
+        ) . "</div>";
+        echo "<div>" . __('Empresa', 'servicereports') . ": " . $entityName . "</div>";
+        echo "</div></div>";
+    }
+
+    /**
+     * Extrato na visão de impressão/PDF: cabeçalho com logo + título por
+     * empresa (uma por página), sem os botões de CSV/PDF da tela.
+     */
+    public static function renderExtratoPrint(array $extrato, string $start, string $end): void
+    {
+        echo "<div class='sr-extrato' style='font-weight:bold'>";
+
+        if (empty($extrato)) {
+            self::printHeader('-', $start, $end);
+            echo "<div class='alert alert-info'>" . __('Nenhum serviço encontrado para o período.', 'servicereports') . "</div>";
+            echo "</div>";
+            return;
+        }
+
+        $first = true;
+        foreach ($extrato as $ent) {
+            $s = $ent['summary'];
+            echo "<div" . ($first ? '' : " style='page-break-before:always'") . ">";
+            self::printHeader($ent['name'], $start, $end);
+
+            echo "<div class='mb-1'><strong>" . __('Valor monetário total', 'servicereports') . ":</strong> " . self::money($s['total']) . "</div>";
+            echo "<div style='font-size:.9rem'>";
+            echo "<div>" . __('Somatório dos valores monetários fixos dos serviços contratados', 'servicereports') . ": " . self::money($s['fixos']) . "</div>";
+            echo "<div>" . __('Somatório dos valores monetários das categorias dos serviços contratados', 'servicereports') . ": " . self::money($s['categorias']) . "</div>";
+            echo "<div>" . __('Somatório dos valores monetários de hora dos serviços contratados', 'servicereports') . ": " . self::money($s['hora']) . "</div>";
+            echo "<div>" . __('Somatório dos valores monetários extras relacionados a chamados', 'servicereports') . ": " . self::money($s['extras']) . "</div>";
+            echo "<div>" . __('Somatório dos valores monetários dos ativos', 'servicereports') . ": " . self::money($s['ativos']) . "</div>";
+            echo "</div>";
+
+            foreach ($ent['services'] as $svc) {
+                self::renderServiceBlock($svc);
+            }
+            echo "</div>";
+            $first = false;
+        }
+        echo "</div>";
+    }
+
     /** Bloco de um serviço dentro do extrato (também usado na fatura/print). */
     private static function renderServiceBlock(array $svc): void
     {
@@ -648,7 +722,6 @@ class PluginServicereportsFinancial
                 . "<th>" . __('Fechamento', 'servicereports') . "</th>"
                 . "<th class='text-end'>" . __('Horas', 'servicereports') . "</th>"
                 . "<th class='text-end'>" . __('Custo hora', 'servicereports') . "</th>"
-                . "<th class='text-end'>" . __('Custo categoria', 'servicereports') . "</th>"
                 . "<th class='text-end'>" . __('Custo chamado', 'servicereports') . "</th>"
                 . "</tr></thead><tbody>";
             foreach ($svc['tickets'] as $t) {
@@ -663,7 +736,6 @@ class PluginServicereportsFinancial
                 echo "<td>" . ($t['closedate'] !== '' ? Html::convDateTime($t['closedate']) : '-') . "</td>";
                 echo "<td class='text-end'>" . self::hms((int) $t['seconds']) . "</td>";
                 echo "<td class='text-end'>" . self::money((float) $t['cost_hour']) . "</td>";
-                echo "<td class='text-end'>" . self::money((float) $t['cost_cat']) . "</td>";
                 echo "<td class='text-end'>" . self::money((float) $t['cost_total']) . "</td>";
                 echo "</tr>";
             }

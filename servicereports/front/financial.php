@@ -78,8 +78,8 @@ if ($available && $tab === 'relatorios' && $isPdf && in_array($report, [1, 4], t
     echo "<div class='container-fluid p-4'>";
     $extrato = PluginServicereportsFinancial::getExtrato($startDt, $endDt);
     if ($report === 1) {
-        // versão de impressão: só o extrato (sem botões).
-        PluginServicereportsFinancial::renderExtrato($extrato, '#', '#');
+        // versão de impressão: cabeçalho com logo/título, sem os botões da tela.
+        PluginServicereportsFinancial::renderExtratoPrint($extrato, $start, $end);
     } else {
         PluginServicereportsFinancial::renderFaturaDetalhada($extrato, $start, $end);
     }

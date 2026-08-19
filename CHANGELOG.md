@@ -33,6 +33,15 @@ próprio no repositório `instant-glpi11-plugins`.
 - **Aviso explícito no lugar do zero silencioso**: serviço sem "Categoria de chamado" e
   sem ativos cobertos passa a exibir, na listagem de chamados, a explicação de que não há
   como vincular chamados (era a causa mais comum de "relatório zerado").
+- **Extrato financeiro — listagem de chamados no formato do original**: a tabela
+  "Listagem dos chamados vinculados ao serviço" passa a ter **ID, Título, Tipo,
+  Categoria, Req., Abertura, Fechamento, Horas, Custo hora, Custo categoria e
+  Custo chamado** (a coluna Status saiu). "Horas" é o tempo de tarefas **daquele
+  chamado dentro do período** (por `tt.date`), "Custo hora" = horas × valor/hora do
+  serviço e "Custo chamado" a soma — a soma da coluna bate com o "Valor monetário
+  total das tarefas" do serviço. "Custo categoria" fica R$ 0,00 (sem modelo de dados
+  no `managedservices`, mesma ressalva dos outros campos de categoria). Fechamento usa
+  `closedate` (cai para `solvedate` quando vazio).
 - **Extrato financeiro — nome curto da entidade e texto em negrito**: o cabeçalho de
   cada entidade passa a exibir só o nome da folha ("Uniletra") em vez do caminho
   completo ("Instant > Standard > Uniletra"), na tela, no **PDF** e no **CSV** (vale

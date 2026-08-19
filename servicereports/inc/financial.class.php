@@ -276,10 +276,12 @@ class PluginServicereportsFinancial
     }
 
     /**
-     * Chamados vinculados ao serviço dentro do período (por data do chamado).
+     * Chamados vinculados ao serviço dentro do período (por data do chamado),
+     * com o que a listagem do extrato exibe: tipo, requerente, abertura,
+     * fechamento e o tempo de tarefas do chamado **dentro do período**.
      *
      * @param int[] $ticketIds
-     * @return array<int,array{id:int,name:string,date:string,status:int,cat:int}>
+     * @return array<int,array<string,mixed>>
      */
     private static function ticketsInPeriod(array $ticketIds, string $startDt, string $endDt): array
     {
@@ -290,20 +292,49 @@ class PluginServicereportsFinancial
         $in = implode(',', array_map('intval', $ticketIds));
         $s  = $DB->escape($startDt);
         $e  = $DB->escape($endDt);
+
+        // Tempo de tarefas por chamado (mesma regra do total: filtra por tt.date).
+        $seconds = [];
         $res = $DB->doQuery(
-            "SELECT id, name, date, status, itilcategories_id
+            "SELECT tickets_id, COALESCE(SUM(actiontime),0) AS t
+             FROM `glpi_tickettasks`
+             WHERE tickets_id IN ($in) AND date BETWEEN '$s' AND '$e'
+             GROUP BY tickets_id"
+        );
+        while ($r = $DB->fetchAssoc($res)) {
+            $seconds[(int) $r['tickets_id']] = (int) $r['t'];
+        }
+
+        // Requerentes (pode haver mais de um por chamado).
+        $requesters = [];
+        $res = $DB->doQuery(
+            "SELECT tickets_id, users_id
+             FROM `glpi_tickets_users`
+             WHERE tickets_id IN ($in) AND type = " . CommonITILActor::REQUESTER . " AND users_id > 0"
+        );
+        while ($r = $DB->fetchAssoc($res)) {
+            $requesters[(int) $r['tickets_id']][] = getUserName((int) $r['users_id']);
+        }
+
+        $res = $DB->doQuery(
+            "SELECT id, name, date, closedate, solvedate, status, type, itilcategories_id
              FROM `glpi_tickets`
              WHERE id IN ($in) AND is_deleted = 0 AND date BETWEEN '$s' AND '$e'
              ORDER BY date DESC"
         );
         $out = [];
         while ($r = $DB->fetchAssoc($res)) {
+            $tid = (int) $r['id'];
             $out[] = [
-                'id'     => (int) $r['id'],
-                'name'   => (string) $r['name'],
-                'date'   => (string) $r['date'],
-                'status' => (int) $r['status'],
-                'cat'    => (int) $r['itilcategories_id'],
+                'id'        => $tid,
+                'name'      => (string) $r['name'],
+                'type'      => (int) $r['type'],
+                'date'      => (string) $r['date'],
+                'closedate' => (string) ($r['closedate'] ?: $r['solvedate'] ?: ''),
+                'status'    => (int) $r['status'],
+                'cat'       => (int) $r['itilcategories_id'],
+                'requester' => implode(', ', $requesters[$tid] ?? []),
+                'seconds'   => $seconds[$tid] ?? 0,
             ];
         }
         return $out;
@@ -402,6 +433,14 @@ class PluginServicereportsFinancial
 
             $linked   = self::linkedTicketIds($sid, $entId, $catId, (bool) $svc['is_recursive']);
             $tickets  = self::ticketsInPeriod($linked, $startDt, $endDt);
+            // Custos por chamado: hora = tempo de tarefas × valor/hora do serviço;
+            // categoria = sem modelo de dados no managedservices (ver docblock) → 0.
+            foreach ($tickets as &$t) {
+                $t['cost_hour']  = $hourly > 0 ? ($t['seconds'] / 3600.0) * $hourly : 0.0;
+                $t['cost_cat']   = 0.0;
+                $t['cost_total'] = $t['cost_hour'] + $t['cost_cat'];
+            }
+            unset($t);
             $seconds  = self::taskTime($linked, $startDt, $endDt);
             $taskVal  = $hourly > 0 ? ($seconds / 3600.0) * $hourly : 0.0;
 
@@ -599,15 +638,33 @@ class PluginServicereportsFinancial
             }
         } else {
             echo "<div class='table-responsive'><table class='table table-sm table-hover mb-0'>";
-            echo "<thead><tr><th>" . __('Chamado', 'servicereports') . "</th><th>" . __('Título', 'servicereports') . "</th><th>" . __('Categoria', 'servicereports') . "</th><th>" . __('Data', 'servicereports') . "</th><th>" . __('Status', 'servicereports') . "</th></tr></thead><tbody>";
+            echo "<thead><tr>"
+                . "<th>" . __('ID', 'servicereports') . "</th>"
+                . "<th>" . __('Título', 'servicereports') . "</th>"
+                . "<th>" . __('Tipo', 'servicereports') . "</th>"
+                . "<th>" . __('Categoria', 'servicereports') . "</th>"
+                . "<th>" . __('Req.', 'servicereports') . "</th>"
+                . "<th>" . __('Abertura', 'servicereports') . "</th>"
+                . "<th>" . __('Fechamento', 'servicereports') . "</th>"
+                . "<th class='text-end'>" . __('Horas', 'servicereports') . "</th>"
+                . "<th class='text-end'>" . __('Custo hora', 'servicereports') . "</th>"
+                . "<th class='text-end'>" . __('Custo categoria', 'servicereports') . "</th>"
+                . "<th class='text-end'>" . __('Custo chamado', 'servicereports') . "</th>"
+                . "</tr></thead><tbody>";
             foreach ($svc['tickets'] as $t) {
                 $url = $CFG_GLPI['root_doc'] . '/front/ticket.form.php?id=' . $t['id'];
                 echo "<tr>";
                 echo "<td><a href='" . Html::cleanInputText($url) . "'>" . $t['id'] . "</a></td>";
                 echo "<td>" . $t['name'] . "</td>";
+                echo "<td>" . Ticket::getTicketTypeName($t['type']) . "</td>";
                 echo "<td>" . ($t['cat'] ? Dropdown::getDropdownName('glpi_itilcategories', $t['cat']) : '-') . "</td>";
+                echo "<td>" . ($t['requester'] !== '' ? $t['requester'] : '-') . "</td>";
                 echo "<td>" . Html::convDateTime($t['date']) . "</td>";
-                echo "<td>" . Ticket::getStatus($t['status']) . "</td>";
+                echo "<td>" . ($t['closedate'] !== '' ? Html::convDateTime($t['closedate']) : '-') . "</td>";
+                echo "<td class='text-end'>" . self::hms((int) $t['seconds']) . "</td>";
+                echo "<td class='text-end'>" . self::money((float) $t['cost_hour']) . "</td>";
+                echo "<td class='text-end'>" . self::money((float) $t['cost_cat']) . "</td>";
+                echo "<td class='text-end'>" . self::money((float) $t['cost_total']) . "</td>";
                 echo "</tr>";
             }
             echo "</tbody></table></div>";

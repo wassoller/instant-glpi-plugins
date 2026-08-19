@@ -58,6 +58,9 @@ Recriar o ambiente do zero: ver [CHANGELOG.md](CHANGELOG.md) e os comandos acima
   `displayTabContentForItem()` é `static`.
 - Dropdown **múltiplo** (`User::dropdown`/`Group::dropdown`/`Dropdown::show`):
   passe **`'value' => $array`**, não `'values'` (o GLPI faz `values = value`).
+- Dropdown de **árvore** (`ITILCategory`, `Location`, …): sem
+  **`'permit_select_parent' => true`** o GLPI marca as categorias-pai como `disabled`
+  (viram só rótulo da hierarquia) e o usuário não consegue escolhê-las.
 - Menu em seção do core: `$PLUGIN_HOOKS['menu_toadd'][$key] = ['assets' => Classe]`
   (ou `'management'`).
 - A classe utilitária `.small` do tema quebra texto (largura mínima) em HTML

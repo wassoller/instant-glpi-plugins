@@ -237,9 +237,13 @@ class PluginManagedservicesManagedservice extends CommonDBTM
         echo "<tr class='tab_bg_1'>";
         echo "<td>" . __('Categoria de chamado', 'managedservices') . "</td>";
         echo "<td>";
+        // permit_select_parent: sem isso o GLPI marca as categorias-pai como
+        // `disabled` (só rótulo da hierarquia) e não dá para escolher, p.ex.,
+        // "Suporte Avançado" quando ela tem filhas.
         ITILCategory::dropdown([
-            'name'  => 'itilcategories_id',
-            'value' => $this->fields['itilcategories_id'] ?? 0,
+            'name'                 => 'itilcategories_id',
+            'value'                => $this->fields['itilcategories_id'] ?? 0,
+            'permit_select_parent' => true,
         ]);
         echo "</td>";
         echo "</tr>";

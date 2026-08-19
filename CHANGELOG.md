@@ -18,6 +18,13 @@ próprio no repositório `instant-glpi11-plugins`.
   direito `own_ticket`, mesmo critério do campo "Atribuído a" do core), e não só os que
   tiveram atividade no intervalo de datas. O técnico escolhido sem atividade no período
   agora aparece na aba Técnicos com o cartão zerado, em vez de "nenhum técnico".
+- **Categoria-pai volta a ser selecionável em Serviços Gerenciados**: o dropdown
+  "Categoria de chamado" usava o padrão do GLPI, que renderiza as categorias **pai**
+  como item `disabled` (só rótulo da hierarquia). Resultado: não dava para escolher
+  "Suporte Avançado" justamente por ela ter filhas. Corrigido com
+  `'permit_select_parent' => true` (mesmo parâmetro que o core usa na busca). Bônus:
+  cada opção passa a ter o caminho completo no `title`, o que distingue categorias
+  homônimas em árvores diferentes (ex.: `Suporte Básico > Suporte Avançado`).
 - **Serviço recursivo cobre as entidades filhas**: a busca de chamados por categoria
   usava `entities_id` **igual** ao do serviço; agora, quando o serviço é `is_recursive`,
   considera a entidade **e suas descendentes** (`getSonsOf('glpi_entities', …)`). Sem isso

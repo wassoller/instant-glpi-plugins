@@ -36,7 +36,7 @@ Reimplementação de 3 blocos do *Verdana vReports* (interno `vreports`):
 **Central de serviços**, **Gestão financeira** (lê dados do `managedservices`) e
 **Analistas**. Menu: **Gerência > Relatórios**.
 Gestão financeira tem **Dashboards** (KPIs + gráficos) e **Relatórios** (Extrato
-financeiro, Faturamento e Fatura detalhada, com export CSV e versão imprimível/PDF);
+financeiro e Faturamento, com export CSV e versão imprimível/PDF);
 Analistas tem Técnicos, Relatórios (tarefas por técnico, deslocamentos, horas fora de
 expediente) e Mapas. As listagens paginam de 10 em 10; CSV e PDF saem completos.
 

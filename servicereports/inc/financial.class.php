@@ -8,10 +8,9 @@
  *
  * Sub-abas (paridade com o vReports original):
  *   - Dashboards  → getKpis() + gráficos.
- *   - Relatórios  → 3 relatórios:
+ *   - Relatórios  → 2 relatórios:
  *       1  Extrato financeiro        (detalhamento por entidade/serviço)
  *       2  Faturamento financeiro    (resumo do total faturado no período)
- *       4  Fatura de serviços detalhada (documento de fatura imprimível)
  */
 
 if (!defined('GLPI_ROOT')) {
@@ -679,7 +678,7 @@ class PluginServicereportsFinancial
         echo "</div>";
     }
 
-    /** Bloco de um serviço dentro do extrato (também usado na fatura/print). */
+    /** Bloco de um serviço dentro do extrato (tela e visão de impressão). */
     private static function renderServiceBlock(array $svc, bool $print = false): void
     {
         global $CFG_GLPI;
@@ -782,62 +781,6 @@ class PluginServicereportsFinancial
             . Html::convDate($start) . " " . __('a', 'servicereports') . " " . Html::convDate($end) . "</div>";
         echo "<div><strong>" . __('Valor monetário total faturado', 'servicereports') . ":</strong> " . self::money($total) . "</div>";
         echo "</div></div>";
-    }
-
-    /**
-     * Relatório 4 — Fatura de serviços detalhada (documento imprimível).
-     *
-     * O vReports original renderiza um PDF por um gerador próprio; aqui
-     * produzimos um documento de fatura em HTML (imprimível → "Salvar como PDF").
-     */
-    public static function renderFaturaDetalhada(array $extrato, string $start, string $end, string $printUrl = ''): void
-    {
-        echo "<div class='text-center mb-3'>";
-        echo "<h3 class='mb-0'>" . __('Fatura de serviços detalhada', 'servicereports') . " ";
-        $href = $printUrl !== '' ? Html::cleanInputText($printUrl) : 'javascript:window.print()';
-        $tgt  = $printUrl !== '' ? " target='_blank'" : '';
-        echo "<a href='" . $href . "'$tgt class='btn btn-link btn-sm p-0 align-baseline' title='" . __('Imprimir / Salvar PDF', 'servicereports') . "'><i class='ti ti-printer'></i></a>";
-        echo "</h3></div>";
-
-        echo "<div class='alert alert-secondary' style='font-size:.85rem'><i class='ti ti-info-circle me-1'></i>"
-            . __('Documento imprimível (use Imprimir → Salvar como PDF). No vReports original a fatura era gerada por um engine PDF próprio.', 'servicereports')
-            . "</div>";
-
-        if (empty($extrato)) {
-            echo "<div class='alert alert-info'>" . __('Nenhum serviço encontrado para o período.', 'servicereports') . "</div>";
-            return;
-        }
-
-        foreach ($extrato as $ent) {
-            echo "<div class='card shadow-sm mb-4'><div class='card-body'>";
-            echo "<div class='d-flex justify-content-between align-items-start mb-3'>";
-            echo "<div><div class='h4 mb-0'>" . __('Fatura de serviços', 'servicereports') . "</div>"
-                . "<div class='text-muted'>" . $ent['name'] . "</div></div>";
-            echo "<div class='text-end text-muted' style='font-size:.9rem'>"
-                . __('Período', 'servicereports') . ": " . Html::convDate($start) . " – " . Html::convDate($end) . "</div>";
-            echo "</div>";
-
-            echo "<div class='table-responsive'><table class='table table-bordered'>";
-            echo "<thead><tr><th>" . __('Serviço', 'servicereports') . "</th>"
-                . "<th class='text-end'>" . __('Mensal', 'servicereports') . "</th>"
-                . "<th class='text-end'>" . __('Ativos', 'servicereports') . "</th>"
-                . "<th class='text-end'>" . __('Tarefas', 'servicereports') . "</th>"
-                . "<th class='text-end'>" . __('Total', 'servicereports') . "</th></tr></thead><tbody>";
-            foreach ($ent['services'] as $svc) {
-                echo "<tr><td>" . $svc['name'] . "</td>"
-                    . "<td class='text-end'>" . self::money($svc['mensal']) . "</td>"
-                    . "<td class='text-end'>" . self::money($svc['ativos']) . "</td>"
-                    . "<td class='text-end'>" . self::money($svc['task_value']) . "</td>"
-                    . "<td class='text-end'>" . self::money($svc['total']) . "</td></tr>";
-            }
-            // Total da entidade = período inteiro (a listagem acima pode estar paginada).
-            echo "</tbody><tfoot><tr><th>" . __('Total da entidade', 'servicereports')
-                . " <span class='text-muted fw-normal' style='font-size:.8rem'>("
-                . __('todos os serviços do período', 'servicereports') . ")</span></th>"
-                . "<th colspan='3'></th><th class='text-end'>" . self::money($ent['summary']['total']) . "</th></tr></tfoot>";
-            echo "</table></div>";
-            echo "</div></div>";
-        }
     }
 
     // =====================================================================

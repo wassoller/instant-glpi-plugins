@@ -137,8 +137,9 @@ Os plugins já rodam em **produção** no GLPI 10 da Instant
 
 ## Relatórios de Gestão financeira — cuidados
 
-A sub-aba **Relatórios** (`front/financial.php` + `inc/financial.class.php`) tem 3
-relatórios (ids do original **1/2/4**); segue o mesmo padrão do `analysts.php`
+A sub-aba **Relatórios** (`front/financial.php` + `inc/financial.class.php`) tem 2
+relatórios (ids do original **1/2**; o **4 — "Fatura de serviços detalhada" — foi
+removido** em 2026-08-25 a pedido da Instant); segue o mesmo padrão do `analysts.php`
 (seletor `report` com `on_change=this.form.submit()`, filtro `start_date`/`end_date`,
 CSV antes do `Html::header` com `exit`).
 
@@ -149,9 +150,8 @@ CSV antes do `Html::header` com `exit`).
   tipo) com o `…types_id` do ativo coberto (ver `assetTypeField()`).
 - **Sem modelo de dados** (batem com os zeros do demo Verdana): "valor por **categoria**
   de chamado" e "**extras** relacionados a chamados" ficam R$ 0,00 — estrutura honesta.
-- **Fatura de serviços detalhada** (id 4): o original é PDF por engine próprio; aqui é
-  documento **HTML imprimível** via `Html::popHeader`/`popFooter` + `window.print()`
-  (rota `&pdf=1`). Mesma rota gera o "PDF" do Extrato.
+- A rota `&pdf=1` (visão de impressão via `Html::popHeader`/`popFooter` +
+  `window.print()`) hoje só atende o **Extrato**.
 - **Categoria do serviço = subárvore inteira**: use `categoryTreeIds()` (baseado em
   `getSonsOf('glpi_itilcategories', $id)`), nunca igualdade simples — um serviço em
   "Suporte Avançado" tem de somar "Suporte Avançado > Active Directory > … > GPO".
@@ -184,9 +184,10 @@ nunca paginam**; os formulários de filtro não enviam `start`, então filtrar v
 
 Traduções `.mo` (hoje os textos saem em pt-BR direto pelos `__()`), refino de ícones.
 Rebuild dos `dist/*.zip` antes do deploy (o `zip -rq dist/<plugin>.zip <plugin>` já é o
-suficiente). A **paridade com o repo GLPI 11** (`instant-glpi11-plugins`) está **em dia**
-desde 2026-08-19 (versão 0.2.0 lá também) — ao mexer na lógica aqui, porte lá na
-sequência. Detalhe do port: no GLPI 11 os assets estáticos do plugin ficam em
+suficiente). A **paridade com o repo GLPI 11** (`instant-glpi11-plugins`) estava em dia
+desde 2026-08-19 (versão 0.2.0 lá também), mas **saiu de sincronia em 2026-08-25**: a
+remoção do relatório 4 ("Fatura de serviços detalhada") ainda **não foi portada** para lá.
+Ao mexer na lógica aqui, porte lá na sequência. Detalhe do port: no GLPI 11 os assets estáticos do plugin ficam em
 `<plugin>/public/` (a logo do PDF virou `servicereports/public/pics/instant-logo.png`);
 aqui continuam em `pics/`.
 

@@ -74,12 +74,21 @@ copiar os arquivos e recarregar.
 ### Adicionado
 - **Paginação de 10 em 10** (`PluginServicereportsPager`, `inc/pager.class.php`) nos
   relatórios: Analistas 57 (via `LIMIT/OFFSET`, com os totais do cabeçalho calculados
-  sobre o período inteiro) e 59, e Gestão financeira 1 e 4 (10 serviços por página).
+  sobre o período inteiro) e 59, e Gestão financeira 1 (10 serviços por página).
   **CSV e impressão/PDF nunca paginam**; filtrar volta para a 1ª página.
 - **Analistas › dropdown "Técnico" com todos os técnicos do GLPI** (usuários com o
   direito `own_ticket`, mesmo critério do "Atribuído a" do core), e não só os com
   atividade no período. Técnico sem atividade aparece com o cartão zerado, em vez de
   "nenhum técnico".
+
+### Removido — 2026-08-25
+- **Relatório "Fatura de serviços detalhada" (id 4)** saiu do bloco Gestão financeira:
+  sumiu do seletor de relatórios, da rota de impressão (`&pdf=1`) e o
+  `renderFaturaDetalhada()` foi apagado de `inc/financial.class.php`. Decisão da Instant
+  — a fatura do vReports original é um PDF de engine próprio e o relatório aqui não ia
+  ser usado. Restam os relatórios **1 (Extrato financeiro)** e **2 (Faturamento
+  financeiro)**. Sem mudança de schema: atualizar é `sync.sh`/`cp` + recarregar.
+  **Pendente de porte para o repo GLPI 11** (`instant-glpi11-plugins`).
 
 > **Paridade:** a versão GLPI 11 (`instant-glpi11-plugins`) recebeu esta mesma rodada
 > na sua `0.2.0`, em 2026-08-19.

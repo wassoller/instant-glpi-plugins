@@ -5,7 +5,7 @@
  * Sub-abas (paridade com o vReports original):
  *   - Dashboards  → KPIs + gráficos.
  *   - Relatórios  → seletor de relatório (Extrato financeiro / Faturamento
- *                   financeiro / Fatura de serviços detalhada) + filtro de período.
+ *                   financeiro) + filtro de período.
  */
 
 include('../../../inc/includes.php');
@@ -73,16 +73,12 @@ if ($available && $tab === 'relatorios' && ($_GET['export'] ?? '') === 'csv' && 
 // ---------------------------------------------------------------------------
 // Visão de impressão (PDF) — página limpa, sem menu, auto-imprime.
 // ---------------------------------------------------------------------------
-if ($available && $tab === 'relatorios' && $isPdf && in_array($report, [1, 4], true)) {
+if ($available && $tab === 'relatorios' && $isPdf && $report === 1) {
     Html::popHeader(__('Gestão financeira', 'servicereports'), $_SERVER['PHP_SELF']);
     echo "<div class='container-fluid p-4'>";
     $extrato = PluginServicereportsFinancial::getExtrato($startDt, $endDt);
-    if ($report === 1) {
-        // versão de impressão: cabeçalho com logo/título, sem os botões da tela.
-        PluginServicereportsFinancial::renderExtratoPrint($extrato, $start, $end);
-    } else {
-        PluginServicereportsFinancial::renderFaturaDetalhada($extrato, $start, $end);
-    }
+    // versão de impressão: cabeçalho com logo/título, sem os botões da tela.
+    PluginServicereportsFinancial::renderExtratoPrint($extrato, $start, $end);
     echo "</div>";
     echo Html::scriptBlock("window.onload=function(){window.print();};");
     Html::popFooter();
@@ -163,7 +159,6 @@ if ($tab === 'dashboards') {
         0 => __('---', 'servicereports'),
         1 => __('Extrato financeiro', 'servicereports'),
         2 => __('Faturamento financeiro', 'servicereports'),
-        4 => __('Fatura de serviços detalhada', 'servicereports'),
     ];
 
     echo "<form method='get' action='" . Html::cleanInputText($base) . "' class='row g-2 align-items-end mb-3'>";
@@ -191,7 +186,7 @@ if ($tab === 'dashboards') {
         echo "<i class='ti ti-clipboard-list' style='font-size:3rem;opacity:.4'></i>";
         echo "<div class='mt-2'>" . __('Nenhum relatório selecionado', 'servicereports') . "</div>";
         echo "</div>";
-    } elseif ($report === 1 || $report === 4) {
+    } elseif ($report === 1) {
         // Listagem paginada de 10 em 10 serviços (CSV/PDF continuam completos).
         $extrato     = PluginServicereportsFinancial::getExtrato($startDt, $endDt);
         $totalSvc    = PluginServicereportsFinancial::countServices($extrato);
@@ -201,15 +196,11 @@ if ($tab === 'dashboards') {
         $pagerParams = ['tab' => 'relatorios', 'report' => $report, 'start_date' => $start, 'end_date' => $end];
 
         PluginServicereportsPager::show($base, $pagerParams, $offset, $totalSvc);
-        if ($report === 1) {
-            PluginServicereportsFinancial::renderExtrato(
-                $page,
-                $url(['export' => 'csv']),
-                $url(['pdf' => '1'])
-            );
-        } else {
-            PluginServicereportsFinancial::renderFaturaDetalhada($page, $start, $end, $url(['pdf' => '1']));
-        }
+        PluginServicereportsFinancial::renderExtrato(
+            $page,
+            $url(['export' => 'csv']),
+            $url(['pdf' => '1'])
+        );
         PluginServicereportsPager::show($base, $pagerParams, $offset, $totalSvc);
     } elseif ($report === 2) {
         PluginServicereportsFinancial::renderFaturamento($start, $end, $startDt, $endDt, $url(['export' => 'csv']));

@@ -75,8 +75,9 @@ Seletor com 3 relatórios (ids do original: 1, 2, 4; o id 3 não existe nesta in
 
 **No clone** (`servicereports/financial.php` + `financial.class.php`): mensal/ativos/tarefas
 computados de verdade; **categoria** e **extras** de chamado = R$ 0,00 (sem modelo de dados —
-batem com os zeros do demo); a Fatura detalhada vira **HTML imprimível** (`Html::popHeader` +
-`window.print()`) em vez do PDF proprietário.
+batem com os zeros do demo). A **Fatura detalhada (id 4) não foi clonada** — chegou a existir
+como HTML imprimível e foi **removida em 2026-08-25** a pedido da Instant; a rota `&pdf=1`
+(`Html::popHeader` + `window.print()`) hoje só serve ao Extrato.
 
 ---
 

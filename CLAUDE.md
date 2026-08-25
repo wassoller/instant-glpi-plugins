@@ -162,8 +162,7 @@ CSV antes do `Html::header` com `exit`).
   tipo) com o `…types_id` do ativo coberto (ver `assetTypeField()`).
 - **Sem modelo de dados** (batem com os zeros do demo Verdana): "valor por **categoria**
   de chamado" e "**extras** relacionados a chamados" ficam R$ 0,00 — estrutura honesta.
-- A rota `&pdf=1` (visão de impressão via `Html::popHeader`/`popFooter` +
-  `window.print()`) hoje só atende o **Extrato**.
+- A rota `&pdf=1` só atende o **Extrato** e devolve um **PDF de verdade** (TCPDF).
 - **Categoria do serviço = subárvore inteira**: use `categoryTreeIds()` (baseado em
   `getSonsOf('glpi_itilcategories', $id)`), nunca igualdade simples — um serviço em
   "Suporte Avançado" tem de somar "Suporte Avançado > Active Directory > … > GPO".
@@ -179,10 +178,28 @@ CSV antes do `Html::header` com `exit`).
   numa **grade de 6 colunas** (`renderServiceBlock()`) e a listagem com cabeçalho escuro e
   zebra (`renderTicketList()`). Rodapé "Impresso por … em …" (`docFoot()`).
   **O extrato deixou de sair todo em negrito** — o negrito marca só números e títulos.
-- **Tela × PDF**: `renderExtrato($extrato, $start, $end, $csv, $pdf)` é a versão de tela
-  (botões CSV/PDF, nº do chamado como link); `renderExtratoPrint()` é a de impressão (uma
-  empresa por página, **sem links**). As duas montam o mesmo documento — só o `$print`
-  muda — sobre papel branco fixo (`.sr-ext`), para não depender do tema do GLPI.
+- **Tela × PDF são dois renderizadores** (mesmo layout, tecnologias diferentes):
+  `renderExtrato($extrato, $start, $end, $csv, $pdf)` desenha a tela em HTML (papel branco
+  fixo em `.sr-ext`, para não depender do tema do GLPI); **`PluginServicereportsExtratopdf`
+  (`inc/extratopdf.class.php`) monta o PDF com TCPDF**. Ao mexer no layout, mexa nos dois.
+- **Por que TCPDF e não a impressão do navegador** (trocado em 2026-08-25, no mesmo dia em
+  que a versão impressa foi entregue): a rota antiga era `Html::popHeader` + `window.print()`
+  e **cortava dados** — as células da listagem tinham `text-overflow:ellipsis` para as
+  colunas alinharem, então título e categoria longos chegavam ao papel pela metade. No
+  TCPDF cada célula é um `MultiCell` que **quebra em linhas** (a altura da linha vem da
+  coluna que precisa de mais linhas, medida com `getNumLines()`), e o cabeçalho/rodapé
+  saem em toda folha com **"Página X de Y"** (`getAliasNumPage()`/`getAliasNbPages()`).
+  Armadilhas dessa classe, todas já pagas:
+  - **`ob_start()`/`ob_end_clean()` em volta do `build()`** em `front/financial.php`: com
+    `display_errors` ligado, um aviso do PHP impresso durante a montagem entra **dentro**
+    do binário e o PDF não abre. O TCPDF dispara um `Deprecated: imagedestroy()` no PHP 8.5.
+  - **Larguras de coluna somam 277mm** (A4 paisagem menos as margens) e as três últimas são
+    largas de propósito: `Cell()` **não corta** o que não cabe, transborda — "CUSTO CHAMADO"
+    em caixa alta invadia a coluna vizinha.
+  - **`plain()`** antes de escrever: o GLPI devolve texto HTML-escapado (`&#62;` nas
+    categorias em árvore) e o TCPDF imprimiria a entidade literal.
+  - `mb_strtoupper` para caixa alta (o `strtoupper` erra em UTF-8) e `Image()` com o
+    **caminho no disco** (o TCPDF não lê URL).
 - **CSS num `<style>` só** (`styles()`, emitido uma vez por página, classes com prefixo
   `sr-`): precisa de `:nth-child` (zebra), `@media print` e `thead {display:table-header-group}`
   (repete o cabeçalho da tabela na folha seguinte), que atributo `style` não faz. Três

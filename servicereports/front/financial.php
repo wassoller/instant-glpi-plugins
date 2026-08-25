@@ -71,17 +71,29 @@ if ($available && $tab === 'relatorios' && ($_GET['export'] ?? '') === 'csv' && 
 }
 
 // ---------------------------------------------------------------------------
-// Visão de impressão (PDF) — página limpa, sem menu, auto-imprime.
+// PDF (TCPDF) — antes de qualquer saída HTML.
+//
+// Era a impressão do navegador (popHeader + window.print()), mas ela **cortava
+// dados**: as células da listagem eram truncadas para as colunas alinharem.
+// No TCPDF o texto quebra em linhas e sai "Página X de Y". Ver extratopdf.class.php.
 // ---------------------------------------------------------------------------
 if ($available && $tab === 'relatorios' && $isPdf && $report === 1) {
-    Html::popHeader(__('Gestão financeira', 'servicereports'), $_SERVER['PHP_SELF']);
-    echo "<div class='container-fluid p-4'>";
     $extrato = PluginServicereportsFinancial::getExtrato($startDt, $endDt);
-    // versão de impressão: cabeçalho com logo/título, sem os botões da tela.
-    PluginServicereportsFinancial::renderExtratoPrint($extrato, $start, $end);
-    echo "</div>";
-    echo Html::scriptBlock("window.onload=function(){window.print();};");
-    Html::popFooter();
+
+    // Buffer obrigatório: qualquer aviso do PHP impresso durante a montagem
+    // (o TCPDF dispara um "Deprecated: imagedestroy()" no PHP 8.5, e com
+    // display_errors ligado isso ia parar **dentro** do binário) corromperia o
+    // arquivo — o navegador baixaria um PDF que não abre.
+    ob_start();
+    $bytes = PluginServicereportsExtratopdf::build($extrato, $start, $end);
+    ob_end_clean();
+
+    $file = 'extrato_financeiro_' . $start . '_' . $end . '.pdf';
+
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: inline; filename="' . $file . '"');
+    header('Content-Length: ' . strlen($bytes));
+    echo $bytes;
     exit;
 }
 

@@ -81,6 +81,21 @@ copiar os arquivos e recarregar.
   atividade no período. Técnico sem atividade aparece com o cartão zerado, em vez de
   "nenhum técnico".
 
+### Alterado — Extrato financeiro vira PDF de verdade (2026-08-25)
+- **A rota `&pdf=1` passa a gerar PDF com TCPDF** (`inc/extratopdf.class.php`,
+  `PluginServicereportsExtratopdf`), no lugar da impressão do navegador. Motivo: a versão
+  impressa **cortava dados** — as células da listagem usavam `text-overflow:ellipsis` para
+  as colunas alinharem, e título/categoria longos chegavam ao papel pela metade.
+- No PDF cada célula é um `MultiCell` que **quebra em linhas** (altura da linha = coluna que
+  precisa de mais linhas, via `getNumLines()`), o cabeçalho da tabela **se repete** quando a
+  listagem vira a folha, e o rodapé traz **"Página X de Y"** — que HTML impresso não faz.
+- A tela não mudou: continua o layout "Institucional" em HTML. São dois renderizadores do
+  mesmo desenho; `renderExtratoPrint()` e o parâmetro `$print` foram removidos.
+- Validado no GLPI 10.0.26 local com 30 chamados de volume (9 páginas): nenhuma linha
+  perdida, quebra de página no meio da tabela com cabeçalho repetido, e título de 100
+  caracteres saindo inteiro em 4 linhas.
+- Sem mudança de schema. O TCPDF já vem no vendor do GLPI 10 (o core usa em `GLPIPDF`).
+
 ### Alterado — novo layout do Extrato financeiro (2026-08-25)
 - **Extrato redesenhado** (tela e impressão/PDF), a partir de três propostas apresentadas à
   Instant; escolhida a **"Institucional"**. Mantém todos os dados — resumo da entidade, os

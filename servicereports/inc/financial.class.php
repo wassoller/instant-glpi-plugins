@@ -739,10 +739,10 @@ class PluginServicereportsFinancial
 
     /**
      * Bloco de um serviço: barra com nome e custo total, os seis valores em
-     * grade e a listagem de chamados. Mesmo bloco na tela e no papel — só o
-     * número do chamado muda (link fora do PDF).
+     * grade e a listagem de chamados. O equivalente no papel é
+     * PluginServicereportsExtratopdf::drawService().
      */
-    private static function renderServiceBlock(array $svc, bool $print = false): void
+    private static function renderServiceBlock(array $svc): void
     {
         echo "<div class='sr-svc'>";
         echo "<div class='sr-svc-bar'>";
@@ -764,15 +764,15 @@ class PluginServicereportsFinancial
         }
         echo "</div>";
 
-        self::renderTicketList($svc, $print);
+        self::renderTicketList($svc);
         echo "</div>";
     }
 
     /**
      * Listagem dos chamados do serviço faturados no período — os **fechados**
-     * dentro dele, com o tempo total de tarefas (nº vira link só fora do PDF).
+     * dentro dele, com o tempo total de tarefas (nº com link para o chamado).
      */
-    private static function renderTicketList(array $svc, bool $print = false): void
+    private static function renderTicketList(array $svc): void
     {
         global $CFG_GLPI;
 
@@ -805,14 +805,9 @@ class PluginServicereportsFinancial
             . "<th class='r'>" . __('Custo chamado', 'servicereports') . "</th>"
             . "</tr></thead><tbody>";
         foreach ($svc['tickets'] as $t) {
+            $url = $CFG_GLPI['root_doc'] . '/front/ticket.form.php?id=' . $t['id'];
             echo "<tr>";
-            if ($print) {
-                // No PDF o nº do chamado sai como texto (link não serve no papel).
-                echo "<td>" . $t['id'] . "</td>";
-            } else {
-                $url = $CFG_GLPI['root_doc'] . '/front/ticket.form.php?id=' . $t['id'];
-                echo "<td><a href='" . Html::cleanInputText($url) . "'>" . $t['id'] . "</a></td>";
-            }
+            echo "<td><a href='" . Html::cleanInputText($url) . "'>" . $t['id'] . "</a></td>";
             echo "<td title='" . Html::cleanInputText($t['name']) . "'>" . $t['name'] . "</td>";
             echo "<td>" . Ticket::getTicketTypeName($t['type']) . "</td>";
             $cat = $t['cat'] ? Dropdown::getDropdownName('glpi_itilcategories', $t['cat']) : '-';
@@ -864,36 +859,6 @@ class PluginServicereportsFinancial
             }
             self::docFoot($ent['name']);
             echo "</div></div>";
-        }
-    }
-
-    /**
-     * Extrato na visão de impressão/PDF: uma empresa por página, sem os botões
-     * da tela e sem links. Paisagem — a listagem de chamados tem 10 colunas.
-     */
-    public static function renderExtratoPrint(array $extrato, string $start, string $end): void
-    {
-        self::styles();
-
-        if (empty($extrato)) {
-            echo "<div class='sr-ext'><div class='sr-ext-sheet'>";
-            self::docBand('-', $start, $end);
-            echo "<div class='sr-empty' style='margin-top:16px'>" . __('Nenhum serviço encontrado para o período.', 'servicereports') . "</div>";
-            echo "</div></div>";
-            return;
-        }
-
-        $first = true;
-        foreach ($extrato as $ent) {
-            echo "<div class='sr-ext'" . ($first ? '' : " style='page-break-before:always'") . "><div class='sr-ext-sheet'>";
-            self::docBand($ent['name'], $start, $end);
-            self::renderEntitySummary($ent['summary']);
-            foreach ($ent['services'] as $svc) {
-                self::renderServiceBlock($svc, true);
-            }
-            self::docFoot($ent['name']);
-            echo "</div></div>";
-            $first = false;
         }
     }
 

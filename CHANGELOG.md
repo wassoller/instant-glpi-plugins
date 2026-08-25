@@ -81,6 +81,25 @@ copiar os arquivos e recarregar.
   atividade no período. Técnico sem atividade aparece com o cartão zerado, em vez de
   "nenhum técnico".
 
+### Alterado — regra de período dos relatórios financeiros (2026-08-25)
+- **O chamado passa a ser faturado no período em que foi FECHADO**, e não mais no período
+  em que foi aberto — e entra com **todas** as suas tarefas, sem filtro de data. Antes o
+  extrato pegava os chamados por `glpi_tickets.date` (abertura) e somava só as tarefas com
+  `tt.date` dentro do período, o que **partia um mesmo chamado entre vários meses**.
+  Exemplo da Instant: chamado aberto em 09/10/2024, tarefas em 11/10 (0:30), 02/11 (0:40)
+  e 04/11 (0:45), fechado em 14/11/2024 → **outubro sai vazio** e **novembro soma 1:55**
+  (antes: outubro 0:30 e novembro 1:25). Chamado ainda **em aberto** — ou apenas
+  *Solucionado*, com `closedate` NULL — não aparece em extrato nenhum até fechar.
+- Vale para os **dois** relatórios financeiros: o 2 (Faturamento) deriva do mesmo
+  `getExtrato()`. O bloco **Analistas não muda** (continua por `tt.date`).
+- `taskTime()` foi removido: o total de horas do serviço agora é a **soma dos chamados
+  listados**, o que elimina a incoerência de o cabeçalho mostrar horas enquanto a listagem
+  vinha vazia (acontecia sempre que a tarefa caía num mês e a abertura em outro).
+- Listagem rotulada como "(fechados no período)" e ordenada por data de fechamento.
+- Consequência aceita: como o GLPI sobrescreve `closedate` na reabertura, um chamado
+  reaberto e fechado de novo **migra de mês** — não há congelamento do período faturado.
+- Sem mudança de schema.
+
 ### Removido — 2026-08-25
 - **Relatório "Fatura de serviços detalhada" (id 4)** saiu do bloco Gestão financeira:
   sumiu do seletor de relatórios, da rota de impressão (`&pdf=1`) e o

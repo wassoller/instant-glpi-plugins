@@ -281,9 +281,16 @@ class PluginServicereportsFinancial
     }
 
     /**
-     * Chamados vinculados ao serviço dentro do período (por data do chamado),
-     * com o que a listagem do extrato exibe: tipo, requerente, abertura,
-     * fechamento e o tempo de tarefas do chamado **dentro do período**.
+     * Chamados do serviço faturáveis no período: os **fechados** dentro dele
+     * (`glpi_tickets.closedate` entre início e fim). Regra de negócio da Instant
+     * (2026-08-25): o chamado só vira dinheiro quando encerra, e aí entra com
+     * **todas** as suas tarefas, inclusive as de meses anteriores — um chamado
+     * aberto em 09/10, com tarefas em 11/10, 02/11 e 04/11 e fechado em 14/11
+     * não aparece no extrato de outubro e soma as três horas no de novembro.
+     * Chamado em aberto (ou Solucionado sem fechar) não entra em extrato nenhum.
+     *
+     * Devolve o que a listagem do extrato exibe: tipo, requerente, abertura,
+     * fechamento e o tempo **total** de tarefas do chamado.
      *
      * @param int[] $ticketIds
      * @return array<int,array<string,mixed>>
@@ -298,12 +305,13 @@ class PluginServicereportsFinancial
         $s  = $DB->escape($startDt);
         $e  = $DB->escape($endDt);
 
-        // Tempo de tarefas por chamado (mesma regra do total: filtra por tt.date).
+        // Tempo de tarefas por chamado: **todas** as tarefas, sem filtro de data —
+        // quem delimita o período é o fechamento do chamado (ver docblock).
         $seconds = [];
         $res = $DB->doQuery(
             "SELECT tickets_id, COALESCE(SUM(actiontime),0) AS t
              FROM `glpi_tickettasks`
-             WHERE tickets_id IN ($in) AND date BETWEEN '$s' AND '$e'
+             WHERE tickets_id IN ($in)
              GROUP BY tickets_id"
         );
         while ($r = $DB->fetchAssoc($res)) {
@@ -321,11 +329,14 @@ class PluginServicereportsFinancial
             $requesters[(int) $r['tickets_id']][] = getUserName((int) $r['users_id']);
         }
 
+        // Período = data de **fechamento** (não a de abertura): o chamado é
+        // faturado no mês em que encerrou. `closedate` NULL (aberto/pendente/
+        // apenas solucionado) fica de fora — o BETWEEN já descarta.
         $res = $DB->doQuery(
             "SELECT id, name, date, closedate, solvedate, status, type, itilcategories_id
              FROM `glpi_tickets`
-             WHERE id IN ($in) AND is_deleted = 0 AND date BETWEEN '$s' AND '$e'
-             ORDER BY date DESC"
+             WHERE id IN ($in) AND is_deleted = 0 AND closedate BETWEEN '$s' AND '$e'
+             ORDER BY closedate DESC"
         );
         $out = [];
         while ($r = $DB->fetchAssoc($res)) {
@@ -343,30 +354,6 @@ class PluginServicereportsFinancial
             ];
         }
         return $out;
-    }
-
-    /**
-     * Tempo total de tarefas (segundos) dos chamados do serviço no período.
-     * Filtra por tt.date (não tt.begin — a maioria das tarefas não é planejada).
-     *
-     * @param int[] $ticketIds
-     */
-    private static function taskTime(array $ticketIds, string $startDt, string $endDt): int
-    {
-        global $DB;
-        if (empty($ticketIds)) {
-            return 0;
-        }
-        $in = implode(',', array_map('intval', $ticketIds));
-        $s  = $DB->escape($startDt);
-        $e  = $DB->escape($endDt);
-        $res = $DB->doQuery(
-            "SELECT COALESCE(SUM(actiontime),0) AS t
-             FROM `glpi_tickettasks`
-             WHERE tickets_id IN ($in) AND date BETWEEN '$s' AND '$e'"
-        );
-        $row = $DB->fetchAssoc($res);
-        return (int) ($row['t'] ?? 0);
     }
 
     /** Ativos cobertos do serviço (para a listagem do extrato). */
@@ -409,7 +396,8 @@ class PluginServicereportsFinancial
      *   - categoria: valor por categoria de chamado — sem modelo de dados no
      *                managedservices (o vReports original tinha fonte própria); 0.
      *   - extras   : valores extras ligados a chamados — idem; 0.
-     *   - tarefas  : tempo (Σ actiontime, por tt.date) × valor/hora ("hourly").
+     *   - tarefas  : tempo (Σ actiontime de **todas** as tarefas dos chamados
+     *                fechados no período) × valor/hora ("hourly").
      *   - total    : soma dos componentes.
      *
      * @return array<int,array{name:string,summary:array<string,float>,services:array}>
@@ -440,14 +428,17 @@ class PluginServicereportsFinancial
             $tickets  = self::ticketsInPeriod($linked, $startDt, $endDt);
             // Custos por chamado: hora = tempo de tarefas × valor/hora do serviço;
             // categoria = sem modelo de dados no managedservices (ver docblock) → 0.
+            $seconds = 0;
             foreach ($tickets as &$t) {
                 $t['cost_hour']  = $hourly > 0 ? ($t['seconds'] / 3600.0) * $hourly : 0.0;
                 $t['cost_cat']   = 0.0;
                 $t['cost_total'] = $t['cost_hour'] + $t['cost_cat'];
+                $seconds        += (int) $t['seconds'];
             }
             unset($t);
-            $seconds  = self::taskTime($linked, $startDt, $endDt);
-            $taskVal  = $hourly > 0 ? ($seconds / 3600.0) * $hourly : 0.0;
+            // O total sai da soma dos chamados listados (e não de uma consulta
+            // própria): garante que o cabeçalho bata com a listagem.
+            $taskVal = $hourly > 0 ? ($seconds / 3600.0) * $hourly : 0.0;
 
             $categoria = 0.0; // sem modelo de dados (ver docblock)
             $extras    = 0.0; // sem modelo de dados (ver docblock)
@@ -704,15 +695,19 @@ class PluginServicereportsFinancial
         echo "</div>";
     }
 
-    /** Listagem dos chamados vinculados ao serviço (nº vira link só fora do PDF). */
+    /**
+     * Listagem dos chamados do serviço faturados no período — os **fechados**
+     * dentro dele, com o tempo total de tarefas (nº vira link só fora do PDF).
+     */
     private static function renderTicketList(array $svc, bool $print = false): void
     {
         global $CFG_GLPI;
 
-        echo "<div style='padding:0 10px'><strong>" . __('Listagem dos chamados vinculados ao serviço', 'servicereports') . "</strong></div>";
+        echo "<div style='padding:0 10px'><strong>" . __('Listagem dos chamados vinculados ao serviço', 'servicereports')
+            . " <span style='font-weight:normal;font-size:.85rem'>(" . __('fechados no período', 'servicereports') . ")</span></strong></div>";
 
         if (empty($svc['tickets'])) {
-            echo "<div style='padding:0 10px;font-size:.9rem'><i class='ti ti-alert-circle text-warning me-1'></i>" . __('Não há chamados vinculados ao serviço no período', 'servicereports') . "</div>";
+            echo "<div style='padding:0 10px;font-size:.9rem'><i class='ti ti-alert-circle text-warning me-1'></i>" . __('Não há chamados vinculados ao serviço fechados no período', 'servicereports') . "</div>";
             // Causa mais comum de relatório zerado: não há por onde vincular chamados.
             if (empty($svc['cat']) && empty($svc['coveredassets'])) {
                 echo "<div class='alert alert-warning mt-2 mb-2' style='font-size:.85rem'><i class='ti ti-info-circle me-1'></i>"

@@ -143,7 +143,19 @@ removido** em 2026-08-25 a pedido da Instant); segue o mesmo padrão do `analyst
 (seletor `report` com `on_change=this.form.submit()`, filtro `start_date`/`end_date`,
 CSV antes do `Html::header` com `exit`).
 
-- **Tempo de tarefas por `tt.date`** (mesma lição do Analistas), não `tt.begin`.
+- **Período = data de FECHAMENTO do chamado** (regra da Instant, 2026-08-25): o chamado
+  entra no extrato do período em que `glpi_tickets.closedate` cai, e leva junto **todas**
+  as suas tarefas, sem filtro de data — inclusive as de meses anteriores. Exemplo real:
+  chamado aberto em 09/10, tarefas em 11/10 (0:30), 02/11 (0:40) e 04/11 (0:45), fechado
+  em 14/11 → **outubro sai vazio** e **novembro soma 1:55**. Chamado em aberto (ou apenas
+  *Solucionado*, com `closedate` NULL) não entra em extrato nenhum até fechar. Vale para
+  os relatórios **1 e 2** (o 2 deriva do mesmo `getExtrato()`); o bloco **Analistas
+  continua por `tt.date`** — lá a pergunta é "quem trabalhou quando", não "o que faturar".
+- O total de horas do serviço é a **soma dos chamados listados** (não uma consulta à
+  parte) — antes o cabeçalho podia mostrar horas sem nenhum chamado na lista.
+- Reabertura: o GLPI sobrescreve `closedate`, então um chamado reaberto e fechado de novo
+  **migra de mês**; reemitir um extrato antigo pode dar outro número. Aceito pela Instant
+  (não há "congelamento" de período faturado).
 - **Chamados vinculados ao serviço** = por `glpi_tickets.itilcategories_id` = categoria
   do serviço **e/ou** por ativo coberto (`glpi_items_tickets` ↔ `coveredassets`).
 - **Valor de ativos** = casa `perclass` (itemtype `ComputerType`/`MonitorType`/… + id do

@@ -81,6 +81,28 @@ copiar os arquivos e recarregar.
   atividade no período. Técnico sem atividade aparece com o cartão zerado, em vez de
   "nenhum técnico".
 
+### Alterado — novo layout do Extrato financeiro (2026-08-25)
+- **Extrato redesenhado** (tela e impressão/PDF), a partir de três propostas apresentadas à
+  Instant; escolhida a **"Institucional"**. Mantém todos os dados — resumo da entidade, os
+  seis valores por serviço e as dez colunas da listagem — e muda a hierarquia:
+  - faixa de cabeçalho ligando a logo ao título, com Empresa / Período / Emissão à direita;
+  - resumo da entidade em **4 cartões** (total em destaque) + linha fina com categorias,
+    extras e tempo de tarefas — antes eram sete frases de mesmo peso;
+  - os seis valores do serviço saem de **seis linhas de texto para uma grade de 6 colunas**;
+  - listagem de chamados com cabeçalho escuro, zebra e largura de coluna fixa (as tabelas
+    de serviços diferentes passam a alinhar entre si);
+  - rodapé "Impresso por … em …" em toda folha.
+- **O extrato deixou de sair todo em negrito** (era pedido antigo do cliente): sem contraste
+  de peso nada tinha prioridade. Agora o negrito marca números e títulos.
+- O CSS saiu dos atributos `style` para um `<style>` único (`styles()`, classes `sr-`), o que
+  permitiu zebra, `@media print` e repetir o `thead` da tabela na folha seguinte.
+- Continua **HTML de impressão** (`&pdf=1` → `window.print()`), não PDF gerado: mantém tela e
+  papel no mesmo renderizador. "Página X de Y" só sairia com TCPDF — o navegador consegue
+  numerar pelas opções da própria caixa de impressão.
+- `renderExtrato()` passou a receber `$start`/`$end` (o cabeçalho do documento mostra o
+  período também na tela). `kv()`, que ficou órfã com a remoção do relatório 4, foi apagada.
+- Sem mudança de schema.
+
 ### Alterado — regra de período dos relatórios financeiros (2026-08-25)
 - **O chamado passa a ser faturado no período em que foi FECHADO**, e não mais no período
   em que foi aberto — e entra com **todas** as suas tarefas, sem filtro de data. Antes o

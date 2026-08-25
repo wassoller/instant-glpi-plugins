@@ -173,10 +173,24 @@ CSV antes do `Html::header` com `exit`).
 - **KPIs**: "Receita prevista" (e o gráfico por entidade) somam só valores **recorrentes**
   (`value_type <> 'hourly'`). Valor/hora é tarifa: vira dinheiro no extrato, multiplicado
   pelas horas de tarefa.
-- **Tela × PDF**: `renderExtrato()` é a versão de tela (botões CSV/PDF, nº do chamado como
-  link); `renderExtratoPrint()` é a de impressão (logo em `pics/instant-logo.png`, título
-  centralizado em 3 linhas, `@page landscape`, uma empresa por página, **sem links**).
-  Ambas compartilham `renderServiceBlock($svc, $print)` e `renderEntitySummary()`.
+- **Layout "Institucional"** (escolhido pela Instant em 2026-08-25, entre três propostas):
+  faixa de cabeçalho com logo + Empresa/Período/Emissão (`docBand()`), resumo da entidade
+  em 4 cartões com o total destacado (`renderEntitySummary()`), os seis valores do serviço
+  numa **grade de 6 colunas** (`renderServiceBlock()`) e a listagem com cabeçalho escuro e
+  zebra (`renderTicketList()`). Rodapé "Impresso por … em …" (`docFoot()`).
+  **O extrato deixou de sair todo em negrito** — o negrito marca só números e títulos.
+- **Tela × PDF**: `renderExtrato($extrato, $start, $end, $csv, $pdf)` é a versão de tela
+  (botões CSV/PDF, nº do chamado como link); `renderExtratoPrint()` é a de impressão (uma
+  empresa por página, **sem links**). As duas montam o mesmo documento — só o `$print`
+  muda — sobre papel branco fixo (`.sr-ext`), para não depender do tema do GLPI.
+- **CSS num `<style>` só** (`styles()`, emitido uma vez por página, classes com prefixo
+  `sr-`): precisa de `:nth-child` (zebra), `@media print` e `thead {display:table-header-group}`
+  (repete o cabeçalho da tabela na folha seguinte), que atributo `style` não faz. Três
+  detalhes de impressão que não são óbvios: **`print-color-adjust:exact`** ou o Chrome
+  descarta o cabeçalho escuro e a zebra; a margem de baixo do `@page` **reserva o espaço**
+  do rodapé `position:fixed`; e `table-layout:fixed` + larguras por `th:nth-child()`, senão
+  cada tabela da folha escolhe larguras diferentes e as colunas não alinham entre serviços.
+- A logo continua em `pics/instant-logo.png` (`logoUrl()` aceita também `logo.png/jpg/svg`).
 - **Nome da entidade** no extrato é o **curto** (`entityName()`, só a folha) — vale para
   tela, PDF e CSV. O gráfico do Dashboard segue com o completename.
 - **Durações**: resumos por extenso (`duration()` → `Html::timestampToString(..., false, false)`,

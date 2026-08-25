@@ -550,56 +550,112 @@ class PluginServicereportsFinancial
     // =====================================================================
 
     /**
-     * Relatório 1 — Extrato financeiro detalhado.
+     * CSS do extrato (layout "Institucional", escolhido pela Instant em 2026-08-25).
      *
-     * @param array $extrato  saída de getExtrato()
+     * Fica num `<style>` próprio, emitido uma vez por página, em vez de estilo
+     * inline em cada `echo`: precisamos de `:nth-child` (zebra), `thead`
+     * repetido a cada folha e um bloco `@media print`, que atributo `style` não
+     * faz. Todas as classes têm prefixo `sr-` — as utilitárias do tema do GLPI
+     * não servem aqui (a `.small`, por exemplo, quebra o texto).
      */
-    public static function renderExtrato(array $extrato, string $exportCsvUrl, string $pdfUrl): void
+    private static function styles(): void
     {
-        // Tela inteira em negrito (pedido do cliente): envolve título, resumo da
-        // entidade e os blocos de serviço — vale também na visão de impressão/PDF.
-        echo "<div class='sr-extrato' style='font-weight:bold'>";
-        echo "<div class='text-center mb-3'><h3 class='mb-0'>" . __('Extrato financeiro detalhado', 'servicereports') . "</h3></div>";
-
-        echo "<div class='d-flex justify-content-end gap-2 mb-3'>";
-        echo "<a href='" . Html::cleanInputText($exportCsvUrl) . "' class='btn btn-outline-success btn-sm'><i class='ti ti-file-spreadsheet me-1'></i>CSV</a>";
-        echo "<a href='" . Html::cleanInputText($pdfUrl) . "' target='_blank' class='btn btn-outline-danger btn-sm'><i class='ti ti-file-type-pdf me-1'></i>PDF</a>";
-        echo "</div>";
-
-        if (empty($extrato)) {
-            echo "<div class='alert alert-info'>" . __('Nenhum serviço encontrado para o período.', 'servicereports') . "</div>";
-            echo "</div>";
+        static $done = false;
+        if ($done) {
             return;
         }
+        $done = true;
 
-        foreach ($extrato as $ent) {
-            $s = $ent['summary'];
-            echo "<div class='card shadow-sm mb-4'><div class='card-body'>";
-            echo "<h4 class='mb-3'>" . __('Detalhamento financeiro da entidade', 'servicereports') . ": <span class='text-primary'>" . $ent['name'] . "</span></h4>";
-            self::renderEntitySummary($s);
+        echo "<style>
+/* O extrato é um documento: papel branco, independente do tema do GLPI. */
+.sr-ext { background:#fff; color:#16202A; font-variant-numeric:tabular-nums;
+          -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+.sr-ext-sheet { padding:18px 20px 20px; }
+@media screen { .sr-ext { border:1px solid #D8DEE4; border-radius:2px;
+                          box-shadow:0 1px 2px rgba(23,33,43,.06),0 8px 22px rgba(23,33,43,.08); } }
 
-            foreach ($ent['services'] as $svc) {
-                self::renderServiceBlock($svc);
-            }
-            echo "</div></div>";
-        }
-        echo "</div>";
-    }
+/* Faixa de cabeçalho: logo + título à esquerda, empresa/período/emissão à direita. */
+.sr-band { display:flex; align-items:flex-end; justify-content:space-between; gap:24px;
+           padding-bottom:10px; border-bottom:2px solid #223140; }
+.sr-brand { display:flex; align-items:center; gap:12px; }
+.sr-brand img { height:34px; width:auto; display:block; }
+.sr-doc-title { font-size:1.15rem; font-weight:700; line-height:1.15; }
+.sr-doc-sub { font-size:.72rem; color:#5C6B79; margin-top:1px; }
+.sr-meta { display:grid; grid-template-columns:auto auto; gap:1px 14px; font-size:.72rem; margin:0; }
+.sr-meta dt { color:#8B98A5; text-transform:uppercase; letter-spacing:.08em; font-weight:600; }
+.sr-meta dd { margin:0; text-align:right; font-weight:600; }
 
-    /** Resumo financeiro da entidade (mesmo bloco na tela e no PDF). */
-    private static function renderEntitySummary(array $s): void
-    {
-        echo "<div class='mb-1'>" . __('Valor Monetário Total', 'servicereports') . ": " . self::money($s['total']) . "</div>";
-        echo "<div>" . __('Somatório dos valores monetários fixos dos serviços contratados', 'servicereports') . ": " . self::money($s['fixos']) . "</div>";
-        echo "<div>" . __('Somatório dos valores monetários das categorias dos serviços contratados', 'servicereports') . ": " . self::money($s['categorias']) . "</div>";
-        echo "<div>" . __('Somatório dos valores monetários de hora dos serviços contratados', 'servicereports') . ": " . self::money($s['hora']) . "</div>";
-        echo "<div>" . __('Somatório dos valores monetários extras relacionados a chamados', 'servicereports') . ": " . self::money($s['extras']) . "</div>";
-        echo "<div>" . __('Somatório dos valores monetários dos ativos', 'servicereports') . ": " . self::money($s['ativos']) . "</div>";
-        echo "<div>" . __('Tempo total de tarefas', 'servicereports') . ": " . self::duration((int) ($s['segundos'] ?? 0)) . "</div>";
+/* Resumo da entidade: o total em destaque + três indicadores; o resto numa linha fina. */
+.sr-kpis { display:grid; grid-template-columns:1.25fr 1fr 1fr 1fr; gap:8px; margin-top:14px; }
+.sr-kpi { border:1px solid #D8DEE4; border-top:3px solid #D8DEE4; padding:7px 10px 8px; }
+.sr-kpi-lead { border-top-color:#0F6F8C; background:#F0F4F7; }
+.sr-kpi span { display:block; font-size:.62rem; letter-spacing:.1em; text-transform:uppercase;
+               color:#8B98A5; font-weight:600; }
+.sr-kpi strong { display:block; font-size:1.3rem; font-weight:600; margin-top:2px; line-height:1.2; }
+.sr-kpi-lead strong { color:#0F6F8C; font-size:1.5rem; }
+.sr-subline { margin-top:7px; font-size:.72rem; color:#5C6B79; display:flex; flex-wrap:wrap; gap:3px 18px; }
+.sr-subline b { color:#16202A; }
+
+/* Serviço: barra com filete, e os seis valores em grade (antes eram seis frases). */
+.sr-svc { margin-top:16px; break-inside:avoid; }
+.sr-svc-bar { display:flex; align-items:baseline; justify-content:space-between; gap:14px;
+              border-left:4px solid #0F6F8C; background:#F0F4F7; padding:6px 10px; }
+.sr-svc-bar h4 { margin:0; font-size:.92rem; font-weight:600; }
+.sr-svc-tot { font-size:.68rem; color:#5C6B79; text-transform:uppercase; letter-spacing:.08em;
+              font-weight:600; white-space:nowrap; }
+.sr-svc-tot b { font-size:.95rem; color:#16202A; margin-left:6px; letter-spacing:0; }
+.sr-vals { display:grid; grid-template-columns:repeat(6,1fr); margin:8px 0 10px; }
+.sr-vals div { padding:0 10px; border-left:1px solid #EAEEF2;
+                display:flex; flex-direction:column; justify-content:space-between; }
+.sr-vals div:first-child { border-left:0; }
+.sr-vals span { display:block; font-size:.6rem; letter-spacing:.07em; text-transform:uppercase;
+                color:#8B98A5; font-weight:600; }
+.sr-vals b { display:block; font-size:.82rem; font-weight:600; margin-top:1px; }
+
+/* Listagem de chamados: cabeçalho escuro, zebra e largura de coluna fixa —
+   sem `table-layout:fixed` cada tabela da folha escolhe larguras diferentes. */
+.sr-list-cap { font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:#5C6B79;
+               font-weight:600; margin:0 0 4px; padding-left:10px; }
+.sr-tk { width:100%; border-collapse:collapse; table-layout:fixed; font-size:.7rem; }
+.sr-tk thead th { background:#223140; color:#fff; font-weight:600; text-align:left; padding:5px 7px;
+                  font-size:.62rem; letter-spacing:.04em; text-transform:uppercase; }
+.sr-tk tbody td { padding:5px 7px; border-bottom:1px solid #EAEEF2;
+                  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sr-tk tbody tr:nth-child(even) td { background:#F5F8FA; }
+.sr-tk .r { text-align:right; }
+.sr-tk a { color:#0F6F8C; text-decoration:none; }
+.sr-tk th:nth-child(1) { width:4.5%; }
+.sr-tk th:nth-child(2) { width:19%; }
+.sr-tk th:nth-child(3) { width:7.5%; }
+.sr-tk th:nth-child(4) { width:22%; }
+.sr-tk th:nth-child(5) { width:9.5%; }
+.sr-tk th:nth-child(6) { width:9.5%; }
+.sr-tk th:nth-child(7) { width:9.5%; }
+.sr-tk th:nth-child(8) { width:6%; }
+.sr-tk th:nth-child(9) { width:6.5%; }
+.sr-tk th:nth-child(10) { width:6%; }
+
+.sr-empty { font-size:.74rem; color:#5C6B79; padding-left:10px; }
+.sr-warn { margin:6px 0 0 10px; padding:6px 10px; border-left:3px solid #C77700; background:#FDF6E8;
+           font-size:.72rem; color:#5C4A22; }
+.sr-actions { display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px; }
+
+/* Rodapé: no papel gruda no pé de toda folha (a margem de baixo reserva o espaço). */
+.sr-foot { display:flex; justify-content:space-between; gap:16px; font-size:.62rem; color:#8B98A5;
+           border-top:1px solid #D8DEE4; padding-top:6px; margin-top:14px; }
+
+@media print {
+  @page { size:A4 landscape; margin:10mm 10mm 16mm; }
+  .sr-foot { position:fixed; left:0; right:0; bottom:-11mm; margin:0; background:#fff; }
+  .sr-ext-sheet { padding:0; }
+  .sr-tk thead { display:table-header-group; }  /* repete o cabeçalho da tabela na folha seguinte */
+  .sr-tk tbody tr { break-inside:avoid; }
+}
+</style>";
     }
 
     /**
-     * URL da logo usada no cabeçalho do PDF (vazio se o arquivo não existir).
+     * URL da logo usada no cabeçalho do extrato (vazio se o arquivo não existir).
      * Basta trocar `pics/instant-logo.png` para personalizar.
      */
     private static function logoUrl(): string
@@ -614,81 +670,98 @@ class PluginServicereportsFinancial
         return '';
     }
 
-    /** Cabeçalho do PDF: logo discreta à esquerda + título e empresa. */
-    private static function printHeader(string $entityName, string $start, string $end): void
+    /** Faixa de cabeçalho do documento (mesma na tela e no papel). */
+    private static function docBand(string $entityName, string $start, string $end): void
     {
         $logo = self::logoUrl();
 
-        // Logo ancorada à esquerda; título centralizado na página.
-        echo "<div style='position:relative;min-height:60px;margin-bottom:24px'>";
+        echo "<div class='sr-band'>";
+        echo "<div class='sr-brand'>";
         if ($logo !== '') {
-            echo "<img src='" . Html::cleanInputText($logo) . "' alt='' style='position:absolute;left:0;top:0;height:56px;width:auto'>";
+            echo "<img src='" . Html::cleanInputText($logo) . "' alt=''>";
         }
-        echo "<div style='text-align:center'>";
-        echo "<div style='font-size:1.15rem'>" . __('Extrato de consumo de serviços', 'servicereports') . "</div>";
-        echo "<div>" . sprintf(
-            __('Período de %1$s a %2$s', 'servicereports'),
-            Html::convDate($start),
-            Html::convDate($end)
-        ) . "</div>";
-        echo "<div>" . __('Empresa', 'servicereports') . ": " . $entityName . "</div>";
-        echo "</div></div>";
+        echo "<div><div class='sr-doc-title'>" . __('Extrato de consumo de serviços', 'servicereports') . "</div>";
+        echo "<div class='sr-doc-sub'>" . __('Serviços gerenciados', 'servicereports') . "</div></div>";
+        echo "</div>";
+
+        echo "<dl class='sr-meta'>";
+        echo "<dt>" . __('Empresa', 'servicereports') . "</dt><dd>" . $entityName . "</dd>";
+        echo "<dt>" . __('Período', 'servicereports') . "</dt><dd>"
+            . Html::convDate($start) . " – " . Html::convDate($end) . "</dd>";
+        echo "<dt>" . __('Emissão', 'servicereports') . "</dt><dd>"
+            . Html::convDateTime(date('Y-m-d H:i:s')) . "</dd>";
+        echo "</dl>";
+        echo "</div>";
+    }
+
+    /** Rodapé do documento: quem imprimiu e quando. */
+    private static function docFoot(string $entityName): void
+    {
+        $user = getUserName(Session::getLoginUserID());
+
+        echo "<div class='sr-foot'>";
+        echo "<span>" . __('Extrato de consumo de serviços', 'servicereports') . " · " . $entityName . "</span>";
+        echo "<span>" . sprintf(
+            __('Impresso por %1$s em %2$s', 'servicereports'),
+            $user,
+            Html::convDateTime(date('Y-m-d H:i:s'))
+        ) . "</span>";
+        echo "</div>";
     }
 
     /**
-     * Extrato na visão de impressão/PDF: cabeçalho com logo + título por
-     * empresa (uma por página), sem os botões de CSV/PDF da tela.
+     * Resumo financeiro da entidade (mesmo bloco na tela e no papel).
+     *
+     * O total ganha um cartão destacado; fixos, hora e ativos vêm ao lado.
+     * Categorias, extras e tempo de tarefas caem numa linha fina abaixo — os
+     * dois primeiros são sempre R$ 0,00 (sem modelo de dados no managedservices)
+     * e não merecem o mesmo peso visual do que é dinheiro de verdade.
      */
-    public static function renderExtratoPrint(array $extrato, string $start, string $end): void
+    private static function renderEntitySummary(array $s): void
     {
-        // Paisagem: a listagem de chamados tem 10 colunas e não cabe em retrato.
-        echo "<style>@page { size: A4 landscape; margin: 10mm; }</style>";
-        echo "<div class='sr-extrato' style='font-weight:bold'>";
+        echo "<div class='sr-kpis'>";
+        echo "<div class='sr-kpi sr-kpi-lead'><span>" . __('Valor monetário total', 'servicereports')
+            . "</span><strong>" . self::money($s['total']) . "</strong></div>";
+        echo "<div class='sr-kpi'><span>" . __('Valores fixos', 'servicereports')
+            . "</span><strong>" . self::money($s['fixos']) . "</strong></div>";
+        echo "<div class='sr-kpi'><span>" . __('Valores de hora', 'servicereports')
+            . "</span><strong>" . self::money($s['hora']) . "</strong></div>";
+        echo "<div class='sr-kpi'><span>" . __('Valores de ativos', 'servicereports')
+            . "</span><strong>" . self::money($s['ativos']) . "</strong></div>";
+        echo "</div>";
 
-        if (empty($extrato)) {
-            self::printHeader('-', $start, $end);
-            echo "<div class='alert alert-info'>" . __('Nenhum serviço encontrado para o período.', 'servicereports') . "</div>";
-            echo "</div>";
-            return;
-        }
-
-        $first = true;
-        foreach ($extrato as $ent) {
-            $s = $ent['summary'];
-            echo "<div" . ($first ? '' : " style='page-break-before:always'") . ">";
-            self::printHeader($ent['name'], $start, $end);
-
-            self::renderEntitySummary($s);
-
-            foreach ($ent['services'] as $svc) {
-                self::renderServiceBlock($svc, true);
-            }
-            echo "</div>";
-            $first = false;
-        }
+        echo "<div class='sr-subline'>";
+        echo "<span>" . __('Categorias de chamado', 'servicereports') . " <b>" . self::money($s['categorias']) . "</b></span>";
+        echo "<span>" . __('Extras relacionados a chamados', 'servicereports') . " <b>" . self::money($s['extras']) . "</b></span>";
+        echo "<span>" . __('Tempo total de tarefas', 'servicereports') . " <b>" . self::duration((int) ($s['segundos'] ?? 0)) . "</b></span>";
         echo "</div>";
     }
 
-    /** Bloco de um serviço dentro do extrato (tela e visão de impressão). */
+    /**
+     * Bloco de um serviço: barra com nome e custo total, os seis valores em
+     * grade e a listagem de chamados. Mesmo bloco na tela e no papel — só o
+     * número do chamado muda (link fora do PDF).
+     */
     private static function renderServiceBlock(array $svc, bool $print = false): void
     {
-        global $CFG_GLPI;
-
-        // Barra do serviço: nome à esquerda, custo total à direita.
-        echo "<div class='mt-4'>";
-        echo "<div style='background:#e9e9e9;padding:6px 10px;display:flex;justify-content:space-between;gap:12px'>";
-        echo "<span>" . __('Serviço', 'servicereports') . ": " . $svc['name'] . "</span>";
-        echo "<span style='white-space:nowrap'>" . __('CUSTO TOTAL', 'servicereports') . ": " . self::money($svc['total']) . "</span>";
+        echo "<div class='sr-svc'>";
+        echo "<div class='sr-svc-bar'>";
+        echo "<h4>" . $svc['name'] . "</h4>";
+        echo "<div class='sr-svc-tot'>" . __('Custo total', 'servicereports')
+            . " <b>" . self::money($svc['total']) . "</b></div>";
         echo "</div>";
 
-        // Valores do serviço em coluna única e, ao final, a listagem de chamados.
-        echo "<div style='padding:6px 10px'>";
-        echo "<div>" . __('Valor monetário mensal', 'servicereports') . ": " . self::money($svc['mensal']) . "</div>";
-        echo "<div>" . __('Valor monetário de ativos', 'servicereports') . ": " . self::money($svc['ativos']) . "</div>";
-        echo "<div>" . __('Valor monetário total por categoria de chamado', 'servicereports') . ": " . self::money($svc['categoria']) . "</div>";
-        echo "<div>" . __('Valor monetário extras relacionados a chamados', 'servicereports') . ": " . self::money($svc['extras']) . "</div>";
-        echo "<div>" . __('Valor monetário total das tarefas', 'servicereports') . ": " . self::money($svc['task_value']) . "</div>";
-        echo "<div>" . __('Tempo total de tarefas', 'servicereports') . ": " . self::duration((int) $svc['task_seconds']) . "</div>";
+        echo "<div class='sr-vals'>";
+        foreach ([
+            [__('Mensal', 'servicereports'),          self::money($svc['mensal'])],
+            [__('Ativos', 'servicereports'),          self::money($svc['ativos'])],
+            [__('Categoria', 'servicereports'),       self::money($svc['categoria'])],
+            [__('Extras', 'servicereports'),          self::money($svc['extras'])],
+            [__('Tarefas', 'servicereports'),         self::money($svc['task_value'])],
+            [__('Tempo de tarefas', 'servicereports'), self::duration((int) $svc['task_seconds'])],
+        ] as [$label, $value]) {
+            echo "<div><span>$label</span><b>$value</b></div>";
+        }
         echo "</div>";
 
         self::renderTicketList($svc, $print);
@@ -703,32 +776,33 @@ class PluginServicereportsFinancial
     {
         global $CFG_GLPI;
 
-        echo "<div style='padding:0 10px'><strong>" . __('Listagem dos chamados vinculados ao serviço', 'servicereports')
-            . " <span style='font-weight:normal;font-size:.85rem'>(" . __('fechados no período', 'servicereports') . ")</span></strong></div>";
+        $n = count($svc['tickets']);
+        echo "<p class='sr-list-cap'>" . __('Chamados vinculados ao serviço, fechados no período', 'servicereports')
+            . ($n > 0 ? " — $n" : '') . "</p>";
 
-        if (empty($svc['tickets'])) {
-            echo "<div style='padding:0 10px;font-size:.9rem'><i class='ti ti-alert-circle text-warning me-1'></i>" . __('Não há chamados vinculados ao serviço fechados no período', 'servicereports') . "</div>";
+        if ($n === 0) {
+            echo "<div class='sr-empty'>" . __('Não há chamados vinculados ao serviço fechados no período', 'servicereports') . "</div>";
             // Causa mais comum de relatório zerado: não há por onde vincular chamados.
             if (empty($svc['cat']) && empty($svc['coveredassets'])) {
-                echo "<div class='alert alert-warning mt-2 mb-2' style='font-size:.85rem'><i class='ti ti-info-circle me-1'></i>"
+                echo "<div class='sr-warn'>"
                     . __('O serviço não tem "Categoria de chamado" definida em Serviços Gerenciados nem ativos cobertos — sem um dos dois não há como vincular chamados, e os valores de hora/tarefa ficam zerados.', 'servicereports')
                     . "</div>";
             }
             return;
         }
 
-        echo "<div class='table-responsive'><table class='table table-sm table-hover mb-2'>";
+        echo "<table class='sr-tk'>";
         echo "<thead><tr>"
-            . "<th>" . __('ID', 'servicereports') . "</th>"
+            . "<th>" . __('Nº', 'servicereports') . "</th>"
             . "<th>" . __('Título', 'servicereports') . "</th>"
             . "<th>" . __('Tipo', 'servicereports') . "</th>"
             . "<th>" . __('Categoria', 'servicereports') . "</th>"
-            . "<th>" . __('Req.', 'servicereports') . "</th>"
+            . "<th>" . __('Requerente', 'servicereports') . "</th>"
             . "<th>" . __('Abertura', 'servicereports') . "</th>"
             . "<th>" . __('Fechamento', 'servicereports') . "</th>"
-            . "<th class='text-end'>" . __('Horas', 'servicereports') . "</th>"
-            . "<th class='text-end' style='white-space:nowrap'>" . __('Custo hora', 'servicereports') . "</th>"
-            . "<th class='text-end' style='white-space:nowrap'>" . __('Custo chamado', 'servicereports') . "</th>"
+            . "<th class='r'>" . __('Horas', 'servicereports') . "</th>"
+            . "<th class='r'>" . __('Custo hora', 'servicereports') . "</th>"
+            . "<th class='r'>" . __('Custo chamado', 'servicereports') . "</th>"
             . "</tr></thead><tbody>";
         foreach ($svc['tickets'] as $t) {
             echo "<tr>";
@@ -739,23 +813,88 @@ class PluginServicereportsFinancial
                 $url = $CFG_GLPI['root_doc'] . '/front/ticket.form.php?id=' . $t['id'];
                 echo "<td><a href='" . Html::cleanInputText($url) . "'>" . $t['id'] . "</a></td>";
             }
-            echo "<td>" . $t['name'] . "</td>";
+            echo "<td title='" . Html::cleanInputText($t['name']) . "'>" . $t['name'] . "</td>";
             echo "<td>" . Ticket::getTicketTypeName($t['type']) . "</td>";
-            echo "<td>" . ($t['cat'] ? Dropdown::getDropdownName('glpi_itilcategories', $t['cat']) : '-') . "</td>";
+            $cat = $t['cat'] ? Dropdown::getDropdownName('glpi_itilcategories', $t['cat']) : '-';
+            echo "<td title='" . Html::cleanInputText($cat) . "'>" . $cat . "</td>";
             echo "<td>" . ($t['requester'] !== '' ? $t['requester'] : '-') . "</td>";
             echo "<td>" . Html::convDateTime($t['date']) . "</td>";
             echo "<td>" . ($t['closedate'] !== '' ? Html::convDateTime($t['closedate']) : '-') . "</td>";
-            echo "<td class='text-end'>" . self::hms((int) $t['seconds']) . "</td>";
-            echo "<td class='text-end' style='white-space:nowrap'>" . self::money((float) $t['cost_hour']) . "</td>";
-            echo "<td class='text-end' style='white-space:nowrap'>" . self::money((float) $t['cost_total']) . "</td>";
+            echo "<td class='r'>" . self::hms((int) $t['seconds']) . "</td>";
+            echo "<td class='r'>" . self::money((float) $t['cost_hour']) . "</td>";
+            echo "<td class='r'>" . self::money((float) $t['cost_total']) . "</td>";
             echo "</tr>";
         }
-        echo "</tbody></table></div>";
+        echo "</tbody></table>";
     }
 
-    private static function kv(string $k, string $v): void
+    /**
+     * Relatório 1 — Extrato financeiro detalhado, versão de tela.
+     *
+     * Mesmo documento do PDF (layout "Institucional"), com os botões de CSV/PDF
+     * e o nº do chamado como link.
+     *
+     * @param array $extrato  saída de getExtrato()
+     */
+    public static function renderExtrato(
+        array $extrato,
+        string $start,
+        string $end,
+        string $exportCsvUrl,
+        string $pdfUrl
+    ): void {
+        self::styles();
+
+        echo "<div class='sr-actions'>";
+        echo "<a href='" . Html::cleanInputText($exportCsvUrl) . "' class='btn btn-outline-success btn-sm'><i class='ti ti-file-spreadsheet me-1'></i>CSV</a>";
+        echo "<a href='" . Html::cleanInputText($pdfUrl) . "' target='_blank' class='btn btn-outline-danger btn-sm'><i class='ti ti-file-type-pdf me-1'></i>PDF</a>";
+        echo "</div>";
+
+        if (empty($extrato)) {
+            echo "<div class='alert alert-info'>" . __('Nenhum serviço encontrado para o período.', 'servicereports') . "</div>";
+            return;
+        }
+
+        foreach ($extrato as $ent) {
+            echo "<div class='sr-ext mb-4'><div class='sr-ext-sheet'>";
+            self::docBand($ent['name'], $start, $end);
+            self::renderEntitySummary($ent['summary']);
+            foreach ($ent['services'] as $svc) {
+                self::renderServiceBlock($svc);
+            }
+            self::docFoot($ent['name']);
+            echo "</div></div>";
+        }
+    }
+
+    /**
+     * Extrato na visão de impressão/PDF: uma empresa por página, sem os botões
+     * da tela e sem links. Paisagem — a listagem de chamados tem 10 colunas.
+     */
+    public static function renderExtratoPrint(array $extrato, string $start, string $end): void
     {
-        echo "<div class='col'><span class='text-muted'>$k:</span> <strong>$v</strong></div>";
+        self::styles();
+
+        if (empty($extrato)) {
+            echo "<div class='sr-ext'><div class='sr-ext-sheet'>";
+            self::docBand('-', $start, $end);
+            echo "<div class='sr-empty' style='margin-top:16px'>" . __('Nenhum serviço encontrado para o período.', 'servicereports') . "</div>";
+            echo "</div></div>";
+            return;
+        }
+
+        $first = true;
+        foreach ($extrato as $ent) {
+            echo "<div class='sr-ext'" . ($first ? '' : " style='page-break-before:always'") . "><div class='sr-ext-sheet'>";
+            self::docBand($ent['name'], $start, $end);
+            self::renderEntitySummary($ent['summary']);
+            foreach ($ent['services'] as $svc) {
+                self::renderServiceBlock($svc, true);
+            }
+            self::docFoot($ent['name']);
+            echo "</div></div>";
+            $first = false;
+        }
     }
 
     /**

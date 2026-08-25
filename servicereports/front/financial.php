@@ -198,6 +198,8 @@ if ($tab === 'dashboards') {
         PluginServicereportsPager::show($base, $pagerParams, $offset, $totalSvc);
         PluginServicereportsFinancial::renderExtrato(
             $page,
+            $start,
+            $end,
             $url(['export' => 'csv']),
             $url(['pdf' => '1'])
         );

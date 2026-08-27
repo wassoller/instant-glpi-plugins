@@ -4,7 +4,8 @@
  *  - Técnicos: performance por técnico (horas de tarefas, chamados por tipo,
  *    satisfação, pontos).
  *  - Relatórios: Tarefas por Técnico (57), Deslocamentos (58), Horas fora de
- *    expediente (59), Entidade vs. Analistas (60).
+ *    expediente (59), Entidade vs. Analistas (60), Chamados por Status e
+ *    Técnico (61).
  *
  * Jornada padrão de expediente: Seg–Sex 08:00–18:00 (ajustável).
  */
@@ -391,6 +392,256 @@ class PluginServicereportsAnalysts
         );
 
         return ['entities' => $entities, 'rows' => $rows, 'totals' => $totals, 'grand' => $grand];
+    }
+
+    // =====================================================================
+    //  Relatório 61 — Chamados por Status e Técnico
+    // =====================================================================
+
+    /**
+     * Ordem dos status na pilha do gráfico (de **baixo para cima**) e nas
+     * colunas da tabela. A legenda sai na ordem inversa (Fechado primeiro),
+     * como no relatório original da Verdana.
+     */
+    public const STATUS_ORDER = [
+        CommonITILObject::INCOMING,   // Novo
+        CommonITILObject::ASSIGNED,   // Em atendimento (atribuído)
+        CommonITILObject::PLANNED,    // Em atendimento (planejado)
+        CommonITILObject::WAITING,    // Pendente
+        CommonITILObject::SOLVED,     // Solucionado
+        CommonITILObject::CLOSED,     // Fechado
+    ];
+
+    /** Cor de cada status — a mesma paleta na tela (SVG) e no PDF (TCPDF). */
+    public const STATUS_COLORS = [
+        CommonITILObject::INCOMING => '#f7a35c',
+        CommonITILObject::ASSIGNED => '#1f6fb5',
+        CommonITILObject::PLANNED  => '#1e8a3e',
+        CommonITILObject::WAITING  => '#8ec9ee',
+        CommonITILObject::SOLVED   => '#5ac26f',
+        CommonITILObject::CLOSED   => '#f2712a',
+    ];
+
+    /**
+     * Rótulos dos seis status, na ordem da pilha. Vêm do core
+     * (`Ticket::getAllStatusArray()`), então acompanham o idioma do GLPI.
+     *
+     * @return array<int,string>
+     */
+    public static function statusLabels(): array
+    {
+        $all = Ticket::getAllStatusArray();
+        $out = [];
+        foreach (self::STATUS_ORDER as $st) {
+            $out[$st] = (string) ($all[$st] ?? $st);
+        }
+        return $out;
+    }
+
+    /** '#rrggbb' → [r,g,b] (o TCPDF pede os componentes separados). */
+    public static function rgb(string $hex): array
+    {
+        $hex = ltrim($hex, '#');
+        return [hexdec(substr($hex, 0, 2)), hexdec(substr($hex, 2, 2)), hexdec(substr($hex, 4, 2))];
+    }
+
+    /**
+     * Relatório 61 — Chamados por Status e Técnico.
+     *
+     * Conta **chamados** (não tarefas): o vínculo com o técnico é o ator
+     * *Atribuído* (`glpi_tickets_users` tipo ASSIGN), mesma regra do card
+     * nativo do GLPI de onde veio o modelo. Chamado com dois técnicos
+     * atribuídos conta 1 para **cada um** — por isso a soma das barras pode
+     * passar do número de chamados do período.
+     *
+     * O período recorta pela **data de abertura** (`glpi_tickets.date`) e o
+     * status é o **atual**: a pergunta é "dos chamados abertos no período, em
+     * que status estão e com quem". Não confunda com os relatórios 57/59/60,
+     * que recortam pela data da *tarefa*.
+     *
+     * @param int $techId 0 = todos os técnicos com chamados no período
+     * @return array{statuses:array<int,string>,
+     *               rows:array<int,array{id:int,name:string,counts:array<int,int>,total:int}>,
+     *               totals:array<int,int>, grand:int, max:int}
+     */
+    public static function getStatusByTechnician(string $start, string $end, int $techId = 0): array
+    {
+        global $DB;
+
+        $s     = $DB->escape($start);
+        $e     = $DB->escape($end);
+        $ent   = getEntitiesRestrictRequest('AND', 'glpi_tickets');
+        $extra = $techId > 0 ? ' AND tu.users_id=' . (int) $techId : '';
+        $in    = implode(',', self::STATUS_ORDER);
+
+        $counts = [];
+        foreach ($DB->request(
+            "SELECT tu.users_id tech, glpi_tickets.status, COUNT(DISTINCT glpi_tickets.id) cnt
+             FROM glpi_tickets_users tu
+             INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tu.tickets_id AND glpi_tickets.is_deleted=0
+             WHERE tu.type=" . CommonITILActor::ASSIGN . " AND tu.users_id>0
+                   AND glpi_tickets.status IN ($in)
+                   AND glpi_tickets.date BETWEEN '$s' AND '$e' $ent $extra
+             GROUP BY tu.users_id, glpi_tickets.status"
+        ) as $r) {
+            $counts[(int) $r['tech']][(int) $r['status']] = (int) $r['cnt'];
+        }
+
+        // Técnico escolhido no filtro aparece mesmo sem chamados no período
+        // (barra zerada), como nos cartões de performance.
+        if ($techId > 0 && !isset($counts[$techId])) {
+            $counts[$techId] = [];
+        }
+
+        $rows   = [];
+        $totals = array_fill_keys(self::STATUS_ORDER, 0);
+        $grand  = 0;
+        $max    = 0;
+        foreach ($counts as $tech => $byStatus) {
+            $total = 0;
+            foreach (self::STATUS_ORDER as $st) {
+                $n              = (int) ($byStatus[$st] ?? 0);
+                $total         += $n;
+                $totals[$st]   += $n;
+            }
+            $grand      += $total;
+            $max         = max($max, $total);
+            $rows[$tech] = ['id' => (int) $tech, 'name' => getUserName($tech), 'counts' => $byStatus, 'total' => $total];
+        }
+        uasort($rows, static fn ($a, $b) => strnatcasecmp($a['name'], $b['name']));
+
+        return [
+            'statuses' => self::statusLabels(),
+            'rows'     => array_values($rows),
+            'totals'   => $totals,
+            'grand'    => $grand,
+            'max'      => $max,
+        ];
+    }
+
+    /**
+     * Escala "redonda" para o eixo Y: devolve o topo e o passo das linhas de
+     * grade (ex.: máximo 64 → topo 70, passo 10).
+     *
+     * @return array{0:int,1:int} [topo, passo]
+     */
+    public static function niceScale(int $value, int $ticks = 7): array
+    {
+        if ($value <= 0) {
+            return [$ticks, 1];
+        }
+        $rough = $value / max(1, $ticks);
+        $mag   = 10 ** (int) max(0, floor(log10(max($rough, 1))));
+        $step  = 10 * $mag;
+        foreach ([1, 2, 5, 10] as $m) {
+            if ($rough <= $m * $mag) {
+                $step = $m * $mag;
+                break;
+            }
+        }
+        $step = (int) max(1, $step);
+        $top  = (int) (ceil($value / $step) * $step);
+        // Uma folga acima da maior barra: sem ela a barra encosta no topo e o
+        // rótulo com o total fica por cima da grade (ou da legenda).
+        if ($top <= $value) {
+            $top += $step;
+        }
+        return [$top, $step];
+    }
+
+    /**
+     * Gráfico de barras empilhadas (SVG gerado no PHP — sem biblioteca JS).
+     *
+     * Cada segmento carrega os números em `data-*`; um tooltip minúsculo em JS
+     * (emitido junto) mostra técnico/status/quantidade ao passar o mouse.
+     * O SVG rola na horizontal quando há muitos técnicos.
+     *
+     * @param array $data saída de getStatusByTechnician()
+     */
+    public static function renderStatusChart(array $data): void
+    {
+        $rows = $data['rows'];
+        if (empty($rows)) {
+            echo "<div class='alert alert-info'>" . __('Nenhum chamado encontrado no período.', 'servicereports') . "</div>";
+            return;
+        }
+
+        $labels = $data['statuses'];
+        [$top, $step] = self::niceScale((int) $data['max']);
+
+        // Geometria (px). O rótulo do técnico sai girado -32°, ancorado no fim,
+        // por isso ele cresce para a **esquerda** e para baixo — daí a margem
+        // esquerda folgada e o corte do nome em 22 caracteres (o nome inteiro
+        // fica no tooltip e na tabela).
+        $barW  = 46;
+        $slot  = 78;
+        $padL  = 76;
+        $padR  = 24;
+        $padT  = 22;
+        $padB  = 104;
+        $plotH = 360;
+        $plotW = max(count($rows) * $slot, 260);
+        $w     = $padL + $plotW + $padR;
+        $h     = $padT + $plotH + $padB;
+        $base  = $padT + $plotH;
+
+        // Legenda: ordem inversa da pilha (Fechado primeiro), como no original.
+        echo "<div class='sr-cst-legend'>";
+        foreach (array_reverse(self::STATUS_ORDER) as $st) {
+            echo "<span class='sr-cst-key'><i style='background:" . self::STATUS_COLORS[$st] . "'></i>"
+                . $labels[$st] . "</span>";
+        }
+        echo "</div>";
+
+        echo "<div class='sr-cst-wrap'>";
+        echo "<svg class='sr-cst' width='$w' height='$h' viewBox='0 0 $w $h' role='img' "
+            . "aria-label='" . __('Chamados por status e técnico', 'servicereports') . "'>";
+
+        // Grade + eixo Y.
+        for ($v = 0; $v <= $top; $v += $step) {
+            $y = round($base - ($v / $top) * $plotH, 1);
+            echo "<line class='sr-cst-grid' x1='$padL' y1='$y' x2='" . ($padL + $plotW) . "' y2='$y'/>";
+            echo "<text class='sr-cst-axis' x='" . ($padL - 8) . "' y='" . ($y + 4) . "' text-anchor='end'>$v</text>";
+        }
+        echo "<line class='sr-cst-base' x1='$padL' y1='$base' x2='" . ($padL + $plotW) . "' y2='$base'/>";
+
+        // Barras.
+        $i = 0;
+        foreach ($rows as $row) {
+            $x    = $padL + $i * $slot + (int) (($slot - $barW) / 2);
+            $y    = $base;
+            // Nome sem entidades HTML: o GLPI devolve texto escapado e o
+            // tooltip lê o atributo já decodificado pelo DOM.
+            $plain = html_entity_decode((string) $row['name'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            foreach (self::STATUS_ORDER as $st) {
+                $n = (int) ($row['counts'][$st] ?? 0);
+                if ($n <= 0) {
+                    continue;
+                }
+                $segH = ($n / $top) * $plotH;
+                $y   -= $segH;
+                $pct  = $row['total'] > 0 ? round($n / $row['total'] * 100) : 0;
+                echo "<rect class='sr-cst-seg' x='$x' y='" . round($y, 2) . "' width='$barW' height='" . round($segH, 2) . "'"
+                    . " fill='" . self::STATUS_COLORS[$st] . "'"
+                    . " data-tech='" . Html::cleanInputText($plain) . "'"
+                    . " data-status='" . Html::cleanInputText(html_entity_decode($labels[$st], ENT_QUOTES | ENT_HTML5, 'UTF-8')) . "'"
+                    . " data-n='$n' data-pct='$pct' data-total='" . (int) $row['total'] . "'></rect>";
+            }
+            // Total acima da barra.
+            if ($row['total'] > 0) {
+                echo "<text class='sr-cst-total' x='" . ($x + $barW / 2) . "' y='" . round($y - 6, 1) . "' text-anchor='middle'>"
+                    . (int) $row['total'] . "</text>";
+            }
+            // Nome do técnico, girado.
+            $short = mb_strlen($plain) > 22 ? mb_substr($plain, 0, 21) . '…' : $plain;
+            $lx    = $x + $barW / 2;
+            $ly    = $base + 14;
+            echo "<text class='sr-cst-name' x='$lx' y='$ly' text-anchor='end' transform='rotate(-32 $lx $ly)'>"
+                . htmlspecialchars($short, ENT_QUOTES, 'UTF-8') . "</text>";
+            $i++;
+        }
+
+        echo "</svg></div>";
     }
 
     /**

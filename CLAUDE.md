@@ -147,6 +147,24 @@ Os plugins já rodam em **produção** no GLPI 10 da Instant
   tiverem horas no período, e aí a coluna fica para não sumir com hora nenhuma e manter
   os totais conferindo. Não pagina; exporta CSV. Ao mexer nele, lembre que a tela usa `position: sticky` (classes
   `sr-eva`) para fixar cabeçalho e coluna do analista.
+- **Relatório 61 — "Chamados por Status e Técnico"** (gráfico de barras empilhadas, id 61)
+  é o único do bloco que **conta chamados, não tarefas**: o vínculo com o técnico é o ator
+  **Atribuído** (`glpi_tickets_users` tipo `ASSIGN`), o recorte do período é a **data de
+  abertura** (`glpi_tickets.date`) e o status é o **atual** — regra do card nativo do GLPI
+  que a Instant usou de modelo (27/08). Chamado com dois atribuídos conta para **cada um**;
+  a soma das barras pode passar o nº de chamados, e o texto de ajuda diz isso. O eixo X
+  traz só os técnicos com chamados no período. O gráfico é **SVG montado no PHP**
+  (`renderStatusChart()`), sem biblioteca — o tooltip é um punhado de JS lendo os `data-*`
+  dos `<rect>` (monte o conteúdo com `textContent`; `innerHTML` com nome de usuário é
+  convite a XSS). Cores e ordem da pilha ficam em `STATUS_ORDER`/`STATUS_COLORS`, usadas
+  **também** pelo PDF — mexeu numa, a outra acompanha.
+- **PDF do 61** (`inc/statustechpdf.class.php`, rota `&pdf=1` em `front/analysts.php`):
+  A4 paisagem, gráfico redesenhado com primitivas do TCPDF + tabela. Três armadilhas já
+  pagas: **`SetXY()` com x negativo** no TCPDF quer dizer "a partir da direita" (o rótulo
+  girado da 1ª barra sumia — a célula vai de `x=0` até o pé da barra, alinhada à direita);
+  **`Cell()` não quebra linha** (o cabeçalho da tabela precisa de `MultiCell`, senão
+  "EM ATENDIMENTO (ATRIBUÍDO)" invade a coluna vizinha); e o `ob_start()`/`ob_end_clean()`
+  em volta do `build()`, igual ao extrato.
 - **Dropdown "Técnico"** lista **todos** os técnicos do GLPI via
   `getAllTechnicians()` (`User::getSqlSearchResult(false, 'own_ticket')`), não só os com
   atividade no período; `getTechnicians($start,$end)` continua sendo a base dos cartões
@@ -235,6 +253,8 @@ CSV antes do `Html::header` com `exit`).
 - Sem mudança de schema → atualizar é só `sync.sh` + recarregar (não reinstalar).
 
 ## Paginação dos relatórios
+
+Os relatórios **60** e **61** não paginam (a matriz inteira / o gráfico *é* o relatório).
 
 `PluginServicereportsPager` (`servicereports/inc/pager.class.php`) — 10 itens por página
 (`PER_PAGE`), offset no parâmetro `start` da URL (convenção do core). `offset($total)`

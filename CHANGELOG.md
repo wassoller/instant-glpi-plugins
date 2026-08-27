@@ -4,6 +4,60 @@ Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/).
 Alvo: **GLPI 10.0.x** (validado em 10.0.26). A versão para GLPI 11 tem changelog
 próprio no repositório `instant-glpi11-plugins`.
 
+## [0.3.0] — 2026-08-27 (não lançado)
+
+Novo relatório no bloco **Analistas › Relatórios**: **61 — "Chamados por Status e
+Técnico"** (pedido da Instant a partir de um card do dashboard nativo). Sem mudança de
+schema: atualizar é copiar os arquivos e recarregar.
+
+### Adicionado
+- **Relatório 61 — Chamados por Status e Técnico.** Barras **empilhadas** por técnico,
+  uma faixa por status (Novo, Em atendimento atribuído/planejado, Pendente, Solucionado,
+  Fechado), com **tooltip** no hover mostrando técnico, status, quantidade, percentual do
+  técnico e total dele. Abaixo do gráfico, a **tabela** técnico × status com os mesmos
+  números, totais por linha e por coluna. Não pagina — o gráfico é o relatório.
+  Decisões de leitura (todas confirmadas com a Instant em 27/08):
+  - **Conta chamados, não tarefas**, e o vínculo é o ator **Atribuído**
+    (`glpi_tickets_users` tipo `ASSIGN`) — a mesma regra do card nativo do GLPI que serviu
+    de modelo. Chamado com dois técnicos atribuídos conta 1 para **cada um**, então a soma
+    das barras pode passar o número de chamados do período (dito no texto de ajuda).
+  - **Período pela data de abertura** (`glpi_tickets.date`) e **status atual**: a pergunta
+    é "dos chamados abertos no período, em que status estão e com quem". Diferente dos
+    relatórios 57/59/60, que recortam pela data da *tarefa*, e do Extrato financeiro, que
+    recorta pelo *fechamento*.
+  - **Eixo X = só os técnicos com chamados no período** (sem colunas vazias). Técnico
+    escolhido no filtro sem chamados aparece zerado, como nos cartões de performance.
+- **Gráfico em SVG gerado no PHP** (`PluginServicereportsAnalysts::renderStatusChart()`),
+  sem biblioteca JS: o GLPI 10 traz o Chartist, mas ele exigiria plugin para tooltip e
+  não serve para o PDF. O tooltip é ~30 linhas de JS que só leem `data-*` dos `<rect>`
+  (montado com `textContent`, nunca `innerHTML`). Rola na horizontal quando há muitos
+  técnicos; rótulos girados -32° e cortados em 22 caracteres (nome inteiro no tooltip e na
+  tabela).
+- **Exportação em PDF** (`&pdf=1` → `PluginServicereportsStatustechpdf`,
+  `inc/statustechpdf.class.php`): A4 **paisagem**, TCPDF, layout "Institucional" do
+  Extrato (faixa com logo, Técnico/Período/Emissão, rodapé "Página X de Y"). O gráfico é
+  redesenhado com primitivas do TCPDF — as mesmas cores da tela — e a tabela vem embaixo,
+  quebrando de página com o cabeçalho repetido.
+- **Exportação CSV** do 61 (`chamados_por_status_e_tecnico.csv`), no padrão dos outros
+  relatórios, com a última linha trazendo o período pedido no filtro.
+
+### Armadilhas pagas (para não repetir)
+- **`SetXY()` com `x` negativo no TCPDF significa "a partir da borda direita"** — o rótulo
+  girado da **primeira** barra sumia da folha. A célula do rótulo agora vai de `x=0` até o
+  pé da barra, com o texto alinhado à direita.
+- **`Cell()` não quebra linha**: "EM ATENDIMENTO (ATRIBUÍDO)" transbordava por cima da
+  coluna vizinha no cabeçalho da tabela. Virou `MultiCell` de duas linhas.
+- **Folga no topo do eixo Y**: sem ela, com um técnico só, a barra encostava no teto e o
+  rótulo do total ficava por cima da grade. `niceScale()` sempre deixa um passo de sobra.
+- **Tooltip posicionado já no `mouseover`** (e não só no `mousemove`): entrando na barra
+  sem mover o ponteiro depois, ele aparecia no canto da página.
+- Órfã de tabela: se a tabela não cabe embaixo do gráfico mas cabe inteira numa folha
+  nova, ela começa numa folha nova e o **gráfico ocupa a folha toda** — em vez de duas
+  linhas derramando na página seguinte e meia página em branco na primeira.
+
+### Paridade
+- Portado no mesmo dia para o repo **GLPI 11** (`instant-glpi11-plugins`, 0.3.0).
+
 ## [0.2.2] — 2026-08-27 (não lançado)
 
 Dois ajustes no **relatório 60 — "Entidade vs. Analistas"**, pedidos pela Instant depois

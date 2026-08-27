@@ -268,9 +268,10 @@ nunca paginam**; os formulários de filtro não enviam `start`, então filtrar v
 Traduções `.mo` (hoje os textos saem em pt-BR direto pelos `__()`), refino de ícones.
 Rebuild dos `dist/*.zip` antes do deploy (o `zip -rq dist/<plugin>.zip <plugin>` já é o
 suficiente). A **paridade com o repo GLPI 11** (`instant-glpi11-plugins`) está **em dia
-desde 2026-08-26** (versão 0.2.1 lá): as mudanças de 25/08 (regra de período por
-fechamento, layout "Institucional", PDF via TCPDF, remoção do relatório 4) e o relatório
-60 ("Entidade vs. Analistas") já foram portados e validados no GLPI 11.0.8.
+desde 2026-08-27** (versão 0.3.0 lá): as mudanças de 25/08 (regra de período por
+fechamento, layout "Institucional", PDF via TCPDF, remoção do relatório 4), o relatório
+60 ("Entidade vs. Analistas") e o relatório 61 ("Chamados por Status e Técnico", com o
+gráfico SVG e o PDF paisagem) já foram portados e validados no GLPI 11.0.8.
 **Ao mexer na lógica aqui, porte lá na sequência** — divergência entre os dois repos é o
 principal risco do projeto.
 

@@ -136,9 +136,12 @@ Os plugins já rodam em **produção** no GLPI 10 da Instant
   **exceção da regra do `tt.date`** acima: ele soma pela lógica do **Extrato financeiro** — período pela
   `closedate` do chamado, levando **todas** as tarefas dele — e não por `tt.date`. Não
   recorta por serviço gerenciado (entram todos os chamados fechados no período, decisão da
-  Instant em 2026-08-26), então o número **não** é o faturável do extrato. Colunas = todas
-  as entidades visíveis na sessão (`getVisibleEntities()`), inclusive as zeradas; não
-  pagina; exporta CSV. Ao mexer nele, lembre que a tela usa `position: sticky` (classes
+  Instant em 2026-08-26), então o número **não** é o faturável do extrato. Colunas = as
+  entidades visíveis na sessão que são **folhas** da árvore (`getVisibleEntities()`,
+  campo `is_leaf`), inclusive as zeradas; os nós de **agrupamento** ("Standard",
+  "Premium", a raiz) são nível de árvore e não cliente, e ficam de fora — **exceto** se
+  tiverem horas no período, e aí a coluna fica para não sumir com hora nenhuma e manter
+  os totais conferindo. Não pagina; exporta CSV. Ao mexer nele, lembre que a tela usa `position: sticky` (classes
   `sr-eva`) para fixar cabeçalho e coluna do analista.
 - **Dropdown "Técnico"** lista **todos** os técnicos do GLPI via
   `getAllTechnicians()` (`User::getSqlSearchResult(false, 'own_ticket')`), não só os com

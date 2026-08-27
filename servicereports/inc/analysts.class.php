@@ -268,7 +268,13 @@ class PluginServicereportsAnalysts
      * árvore. O rótulo é o nome **curto** (só a folha), como no extrato; o
      * completename fica no `title` da coluna.
      *
-     * @return array<int,array{name:string,completename:string}>
+     * `is_leaf` diz se a entidade **não tem filhas**. Na árvore da Instant os
+     * nós intermediários ("Standard", "Premium", …) são níveis de agrupamento,
+     * não clientes — o relatório 60 os esconde quando estão zerados (2026-08-26).
+     * A checagem de pai olha a tabela inteira, não só as entidades visíveis:
+     * uma entidade com filha fora do escopo da sessão continua sendo contêiner.
+     *
+     * @return array<int,array{name:string,completename:string,is_leaf:bool}>
      */
     public static function getVisibleEntities(): array
     {
@@ -278,13 +284,20 @@ class PluginServicereportsAnalysts
         if (empty($ids)) {
             return [];
         }
-        $in  = implode(',', array_map('intval', $ids));
+        $in = implode(',', array_map('intval', $ids));
+
+        $parents = [];
+        foreach ($DB->request("SELECT DISTINCT entities_id FROM glpi_entities WHERE entities_id IS NOT NULL") as $r) {
+            $parents[(int) $r['entities_id']] = true;
+        }
+
         $out = [];
         foreach ($DB->request("SELECT id, name, completename FROM glpi_entities WHERE id IN ($in) ORDER BY completename") as $r) {
             $id = (int) $r['id'];
             $out[$id] = [
                 'name'         => $id === 0 ? Dropdown::getDropdownName('glpi_entities', 0) : (string) $r['name'],
                 'completename' => (string) ($r['completename'] ?: $r['name']),
+                'is_leaf'      => !isset($parents[$id]),
             ];
         }
         return $out;
@@ -304,9 +317,12 @@ class PluginServicereportsAnalysts
      * Diferença para o extrato: aqui não há recorte por serviço gerenciado —
      * entram todos os chamados fechados no período (decisão da Instant, 2026-08-26).
      *
-     * As colunas são **todas** as entidades visíveis na sessão (podem sair
-     * zeradas); as linhas são os analistas com horas no período, ou apenas o
-     * escolhido no filtro.
+     * As colunas são as entidades visíveis na sessão que são **folhas** da
+     * árvore (podem sair zeradas); as linhas são os analistas com horas no
+     * período, ou apenas o escolhido no filtro. Os nós **intermediários**
+     * ("Standard", "Premium", a própria raiz) são níveis de agrupamento e não
+     * clientes: saem da tabela — **a menos que tenham horas no período**, e aí
+     * a coluna fica, para que nenhuma hora suma e os totais continuem batendo.
      *
      * @param int $techId 0 = todos os analistas com horas no período
      * @return array{entities:array<int,array{name:string,completename:string}>,
@@ -353,6 +369,7 @@ class PluginServicereportsAnalysts
                     $entities[$entId] = [
                         'name'         => PluginServicereportsFinancial::entityName($entId),
                         'completename' => Dropdown::getDropdownName('glpi_entities', $entId),
+                        'is_leaf'      => true,
                     ];
                 }
                 $total            += $secs;
@@ -363,6 +380,15 @@ class PluginServicereportsAnalysts
         }
 
         uasort($rows, static fn ($a, $b) => strnatcasecmp($a['name'], $b['name']));
+
+        // Esconde os nós de agrupamento zerados (ver docblock). Contêiner com
+        // horas fica: os chamados são dele, e sumir com a coluna quebraria a
+        // conferência entre as linhas, o rodapé e o total do período.
+        $entities = array_filter(
+            $entities,
+            static fn ($e, $id) => $e['is_leaf'] || ($totals[$id] ?? 0) > 0,
+            ARRAY_FILTER_USE_BOTH
+        );
 
         return ['entities' => $entities, 'rows' => $rows, 'totals' => $totals, 'grand' => $grand];
     }

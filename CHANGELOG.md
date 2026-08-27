@@ -96,10 +96,17 @@ copiar os arquivos e recarregar.
   fechados no período, e não só os ligados a um serviço — o número é o total de horas do
   analista, não o faturável. Um analista pode, portanto, somar mais horas aqui do que no
   extrato da mesma entidade.
-- **Colunas = todas as entidades visíveis na sessão** (`getVisibleEntities()`, a partir de
-  `$_SESSION['glpiactiveentities']`), mesmo as zeradas — como na planilha, que tem uma
-  coluna fixa por cliente. Rótulo é o nome **curto** da entidade (completename no `title`).
-  Na entidade raiz vendo tudo saem todas; com a sessão restrita, só a subárvore ativa.
+- **Colunas = as entidades visíveis na sessão que são folhas da árvore**
+  (`getVisibleEntities()`, a partir de `$_SESSION['glpiactiveentities']`), mesmo as
+  zeradas — como na planilha, que tem uma coluna fixa por cliente. Rótulo é o nome
+  **curto** da entidade (completename no `title`). Na entidade raiz vendo tudo saem
+  todas; com a sessão restrita, só a subárvore ativa.
+- **Nós de agrupamento não viram coluna** (ajuste do mesmo dia, com dados de produção à
+  vista): "Standard", "Premium" e a própria raiz são níveis da árvore, não clientes, e
+  enchiam a tabela de colunas zeradas. Passam a ser omitidos — **a menos que tenham horas
+  no período**, e aí a coluna fica: chamado lançado direto num nó intermediário é dele, e
+  esconder a coluna faria a hora sumir e os totais deixarem de conferir. "Folha" = entidade
+  sem filhas em `glpi_entities` (não só sem filhas visíveis na sessão).
 - Filtro de técnico em **"Todos"** desenha a matriz inteira; com um analista escolhido,
   desenha só a linha dele — zerada, se ele não teve horas no período. Células em
   `HH:MM:SS` (`secToHms()`, padrão dos outros relatórios).

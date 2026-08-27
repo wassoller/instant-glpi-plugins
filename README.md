@@ -25,6 +25,8 @@ Depois disso, ainda sem mudança de schema (atualizar é copiar os arquivos e re
   que cortava dados); o relatório "Fatura de serviços detalhada" foi **removido**.
 - **2026-08-26** — novo relatório **"Entidade vs. Analistas"** em Analistas › Relatórios:
   matriz analista × entidade com o tempo de tarefas, somado pela **mesma regra do Extrato**.
+  As colunas são as entidades **folha**; os nós de agrupamento da árvore ("Standard",
+  "Premium") só aparecem se tiverem horas no período.
 
 Detalhes no [CHANGELOG.md](CHANGELOG.md). A versão para **GLPI 11** está no repositório
 `instant-glpi11-plugins` e **ainda não** tem essas mudanças.

@@ -18,35 +18,40 @@ if (!defined('GLPI_ROOT')) {
 class PluginServicereportsCentralpdf extends TCPDF
 {
     /** Largura útil da folha (A4 paisagem, margens de 10mm). */
-    private const W = 277.0;
+    protected const W = 277.0;
 
     // Paleta do layout "Institucional" (mesma do extrato).
-    private const C_INK    = [22, 32, 42];
-    private const C_SOFT   = [92, 107, 121];
-    private const C_FAINT  = [139, 152, 165];
-    private const C_LINE   = [216, 222, 228];
-    private const C_HEAD   = [34, 49, 64];
-    private const C_ACCENT = [15, 111, 140];
+    protected const C_INK    = [22, 32, 42];
+    protected const C_SOFT   = [92, 107, 121];
+    protected const C_FAINT  = [139, 152, 165];
+    protected const C_LINE   = [216, 222, 228];
+    protected const C_HEAD   = [34, 49, 64];
+    protected const C_ACCENT = [15, 111, 140];
 
     /** Título da seção corrente — o cabeçalho é redesenhado a cada folha. */
     public string $sectionTitle = '';
     /** A capa não leva a faixa de cabeçalho. */
-    private bool $isCover = false;
+    protected bool $isCover = false;
 
-    private string $client = '';
-    private string $period = '';
-    private string $printedBy = '';
+    protected string $client = '';
+    protected string $period = '';
+    protected string $printedBy = '';
+    /** Nome do relatório — sai no subtítulo do cabeçalho e no rodapé. */
+    protected string $reportTitle = '';
 
-    public function __construct(string $client, string $period)
+    public function __construct(string $client, string $period, string $reportTitle = '')
     {
         parent::__construct('L', 'mm', 'A4', true, 'UTF-8');
 
-        $this->client    = $client;
-        $this->period    = $period;
-        $this->printedBy = getUserName(Session::getLoginUserID());
+        $this->client      = $client;
+        $this->period      = $period;
+        $this->printedBy   = getUserName(Session::getLoginUserID());
+        $this->reportTitle = $reportTitle !== ''
+            ? $reportTitle
+            : __('Relatório central de serviços', 'servicereports');
 
         $this->SetCreator('GLPI · servicereports');
-        $this->SetTitle(__('Relatório central de serviços', 'servicereports'));
+        $this->SetTitle($this->reportTitle);
         $this->SetMargins(10, 30, 10);
         $this->SetAutoPageBreak(false); // uma seção por folha, sem quebra automática
         $this->setImageScale(1.25);
@@ -80,7 +85,7 @@ class PluginServicereportsCentralpdf extends TCPDF
         $this->Cell(130, 6, $this->sectionTitle, 0, 2, 'L');
         $this->SetFont('helvetica', '', 7.5);
         $this->SetTextColor(...self::C_SOFT);
-        $this->Cell(130, 4, __('Relatório central de serviços', 'servicereports'), 0, 0, 'L');
+        $this->Cell(130, 4, $this->reportTitle, 0, 0, 'L');
 
         $rows = [
             [__('Cliente', 'servicereports'), $this->client],
@@ -114,7 +119,7 @@ class PluginServicereportsCentralpdf extends TCPDF
         $this->SetY(-11);
         $this->SetFont('helvetica', '', 6.5);
         $this->SetTextColor(...self::C_FAINT);
-        $this->Cell(self::W / 2, 5, __('Relatório central de serviços', 'servicereports') . ' · ' . $this->client, 0, 0, 'L');
+        $this->Cell(self::W / 2, 5, $this->reportTitle . ' · ' . $this->client, 0, 0, 'L');
         $this->Cell(
             self::W / 2,
             5,
@@ -186,7 +191,7 @@ class PluginServicereportsCentralpdf extends TCPDF
     // =====================================================================
 
     /** @param array<int,array{label:string,color:array}> $keys */
-    private function startSection(string $title, string $hint, array $keys = []): float
+    protected function startSection(string $title, string $hint, array $keys = []): float
     {
         $this->sectionTitle = $title;
         $this->AddPage();
@@ -223,7 +228,7 @@ class PluginServicereportsCentralpdf extends TCPDF
     // =====================================================================
 
     /** Grade horizontal + eixo Y. Devolve [topo, base]. */
-    private function grid(float $x0, float $x1, float $y0, float $plotH, int $top, int $step): float
+    protected function grid(float $x0, float $x1, float $y0, float $plotH, int $top, int $step): float
     {
         $base = $y0 + $plotH;
         $this->SetFont('helvetica', '', 6.5);
@@ -243,7 +248,7 @@ class PluginServicereportsCentralpdf extends TCPDF
     }
 
     /** Rótulos do eixo X, girados 40° quando são muitos. */
-    private function xLabels(array $labels, float $x0, float $slot, float $base, bool $rotate, int $every): void
+    protected function xLabels(array $labels, float $x0, float $slot, float $base, bool $rotate, int $every): void
     {
         $this->SetFont('helvetica', '', 6);
         $this->SetTextColor(...self::C_INK);
@@ -269,7 +274,7 @@ class PluginServicereportsCentralpdf extends TCPDF
     }
 
     /** Linha com marcadores (Total de atendimento). */
-    private function drawLine(array $labels, array $values, array $color, float $y0): void
+    protected function drawLine(array $labels, array $values, array $color, float $y0): void
     {
         $x0    = 24.0;
         $x1    = 10.0 + self::W;
@@ -317,7 +322,7 @@ class PluginServicereportsCentralpdf extends TCPDF
      *
      * @param array<int,array{name:string,color:array,data:array<int,int>}> $series
      */
-    private function drawBars(array $labels, array $series, float $y0): void
+    protected function drawBars(array $labels, array $series, float $y0): void
     {
         $x0    = 24.0;
         $x1    = 10.0 + self::W;
@@ -364,7 +369,7 @@ class PluginServicereportsCentralpdf extends TCPDF
      *
      * @param array<int,array{label:string,value:int,note?:string}> $rows
      */
-    private function drawHBars(array $rows, array $color, float $y0): void
+    protected function drawHBars(array $rows, array $color, float $y0): void
     {
         if (empty($rows)) {
             $this->SetXY(10, $y0);
@@ -419,7 +424,7 @@ class PluginServicereportsCentralpdf extends TCPDF
      *
      * @param array<int,array{label:string,value:int,color:array}> $slices
      */
-    private function drawDonut(array $slices, float $y0): void
+    protected function drawDonut(array $slices, float $y0): void
     {
         $total = 0;
         foreach ($slices as $s) {
@@ -488,7 +493,7 @@ class PluginServicereportsCentralpdf extends TCPDF
     //  Utilitários
     // =====================================================================
 
-    private static function logoFile(): string
+    protected static function logoFile(): string
     {
         foreach (['instant-logo.png', 'logo.png', 'logo.jpg'] as $file) {
             $path = GLPI_ROOT . '/plugins/servicereports/pics/' . $file;
@@ -500,24 +505,24 @@ class PluginServicereportsCentralpdf extends TCPDF
     }
 
     /** Texto puro: o GLPI devolve conteúdo HTML-escapado (ex.: `&#62;`). */
-    private static function plain(string $v): string
+    protected static function plain(string $v): string
     {
         return html_entity_decode(strip_tags($v), ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
 
-    private static function upper(string $v): string
+    protected static function upper(string $v): string
     {
         return function_exists('mb_strtoupper') ? mb_strtoupper($v, 'UTF-8') : strtoupper($v);
     }
 
     /** O `Cell()` do TCPDF não corta: transborda. */
-    private static function shorten(string $v, int $max): string
+    protected static function shorten(string $v, int $max): string
     {
         return mb_strlen($v) > $max ? mb_substr($v, 0, $max - 1) . '…' : $v;
     }
 
     /** '#rrggbb' → [r,g,b]. */
-    private static function rgb(string $hex): array
+    protected static function rgb(string $hex): array
     {
         return PluginServicereportsAnalysts::rgb($hex);
     }

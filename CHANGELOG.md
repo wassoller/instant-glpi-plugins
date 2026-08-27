@@ -4,6 +4,86 @@ Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/).
 Alvo: **GLPI 10.0.x** (validado em 10.0.26). A versão para GLPI 11 tem changelog
 próprio no repositório `instant-glpi11-plugins`.
 
+## [0.5.0] — 2026-08-27 (não lançado)
+
+Segundo relatório na sub-aba **Central de serviços › Relatórios**: o **"Relatório de
+atualização - Cliente"**, reimplementação do deck que a Instant entrega ao cliente
+(`Atualização - <Cliente> <data>.pptx`). Sem mudança de schema — atualizar é copiar os
+arquivos e recarregar.
+
+### Adicionado
+- **Relatório de atualização - Cliente** (id **2** no seletor da sub-aba Relatórios), em
+  7 seções — cada uma vira uma página do PDF, na ordem dos slides do deck:
+  1. **Capa/cabeçalho**: cliente (entidade ativa da sessão), chamados abertos, chamados
+     fechados e período.
+  2. **Relatório de atendimentos**: legenda dos status (Atribuído, Pendente, Solucionado,
+     Fechado), com o texto do deck palavra por palavra.
+  3. **Chamados por mês**: barras agrupadas Incidente × Requisição, um par por mês do
+     período.
+  4. **Chamados por tipo**: tabela MÊS × INC × REQ (com total) ao lado da rosca dos dois
+     tipos.
+  5. **Top 5 - Chamados por categoria**: barras horizontais, com o percentual sobre o
+     total (reusa `getTopCategories()` do relatório central, com `limit = 5`).
+  6. **Chamados por dia**: barras Aberto × Fechado **com a linha de backlog por cima**.
+  7. **Chamados por horário**: barras por hora de abertura, só as horas com chamado.
+- **Exportação em PDF** (`&pdf=1` → `PluginServicereportsUpdatepdf`,
+  `inc/updatepdf.class.php`), A4 paisagem no layout "Institucional". A classe **estende
+  `PluginServicereportsCentralpdf`**: cabeçalho, rodapé, moldura de seção, grade, barras,
+  barras horizontais e rosca são os mesmos — o que foi escrito aqui é só o que o deck
+  pede a mais (`drawCombo()`, `drawMonthTable()`, `drawTypeDonut()`, a capa e o
+  glossário).
+- **Exportação CSV**: um arquivo só, seções separadas por linha em branco, como no
+  relatório central.
+- **`PluginServicereportsChart::comboLine()`** — barras agrupadas **mais** uma linha no
+  mesmo eixo, com `niceRange()` para um eixo que desce abaixo de zero. É o único gráfico
+  do plugin com escala negativa.
+
+### Regras (fechadas com a Instant em 2026-08-27)
+- **Aberto** = `glpi_tickets.date`, igual ao relatório central.
+- **Fechado** = `glpi_tickets.closedate` — o status **Fechado**, não o Solucionado.
+  Chamado apenas *Solucionado* (com `closedate` NULL) não entra até fechar; é a mesma
+  régua do extrato da Gestão financeira, e **diferente** do "encerrado" do relatório
+  central, que vai por `solvedate`. Os dois convivem de propósito: lá a pergunta é
+  "quando foi resolvido", aqui é "quando saiu da fila".
+- **Backlog** = fila acumulada: parte dos chamados abertos antes do período e ainda não
+  fechados na véspera (`date < início AND (closedate IS NULL OR closedate >= início)`) e,
+  a cada dia, soma os abertos e subtrai os fechados. A legenda mostra o **último** valor,
+  como no deck.
+- **Chamados por mês** cobre **os meses do período filtrado** (o deck trazia 13 fixos; a
+  Instant preferiu respeitar o filtro).
+- A rosca por tipo tem só **Incidente e Requisição**: é o que o campo `glpi_tickets.type`
+  do GLPI tem. O "Problema" do deck é outro objeto (`glpi_problems`) e sairia sempre
+  zerado — fatia morta, fora.
+
+### Armadilhas pagas
+- **O backlog do deck (−9) não se reproduz** com uma definição coerente: todo chamado
+  fechado no período já foi contado antes (no backlog inicial ou nos abertos), então a
+  linha não desce de zero. O −9 do modelo vinha de um backlog inicial calculado noutra
+  base. O gráfico desenha eixo negativo mesmo assim — data inconsistente (`closedate`
+  anterior à `date`, chamado movido de entidade) empurra a conta para baixo, e o
+  relatório tem de mostrar isso em vez de esconder.
+- **Barras com eixo negativo assentam na linha do zero**, não no pé da área de plotagem —
+  vale para o SVG e para o TCPDF, senão as colunas flutuam.
+- **`drawDonut()` herdado ocupa a folha inteira** (legenda em x=40) e passaria por cima da
+  tabela de meses; daí o `drawTypeDonut()`, com a rosca na metade direita e a legenda por
+  baixo.
+- **Descrição do glossário em coluna fixa**: encostada logo depois do nome do status, cada
+  descrição começava num x diferente (a largura do nome varia) e a linha de base não
+  batia com a do nome.
+- **Tabela de meses com altura de linha adaptativa** (`min(7, 120/(n+2))`): num período
+  longo, linha fixa invadiria o rodapé.
+
+### Alterado
+- **`PluginServicereportsCentralpdf`**: membros e helpers de desenho passaram de `private`
+  a `protected` e o título do relatório virou `$reportTitle` (parâmetro do construtor, com
+  o texto do relatório central como padrão), para o PDF novo herdar em vez de duplicar
+  ~300 linhas. Comportamento do relatório 1 inalterado.
+
+### Paridade
+- **Pendente** de port para o repo **GLPI 11** (`instant-glpi11-plugins`). Ao portar,
+  lembre que lá SQL cru vai por `$DB->doQuery()`/`self::rows()` e os assets ficam em
+  `<plugin>/public/`.
+
 ## [0.4.0] — 2026-08-27 (não lançado)
 
 Nova sub-aba **Relatórios** na **Central de serviços** (Gerência › Relatórios › Central de

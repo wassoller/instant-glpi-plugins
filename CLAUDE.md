@@ -177,9 +177,14 @@ Os plugins já rodam em **produção** no GLPI 10 da Instant
 ## Central de serviços — sub-aba Relatórios
 
 `front/servicecentral.php` tem duas sub-abas: **Dashboard** (os KPIs do mês, que já
-existiam) e **Relatórios**, com o **"Relatório central de serviços"** (7 seções na tela,
-7 páginas no PDF — capa, total de atendimento, atendimento diário, top 7 categorias, SLA
-não conformidade, SLA nível de serviço e top 10 requerentes).
+existiam) e **Relatórios**, com **dois** relatórios no seletor:
+**1 — "Relatório central de serviços"** e **2 — "Relatório de atualização - Cliente"**.
+Ambos têm 7 seções na tela, 7 páginas no PDF, CSV e PDF.
+
+### Relatório central de serviços (id 1)
+
+Capa, total de atendimento, atendimento diário, top 7 categorias, SLA não conformidade,
+SLA nível de serviço e top 10 requerentes.
 
 - **Os gráficos são SVG montados no PHP** por `PluginServicereportsChart`
   (`inc/chart.class.php`): `line()`, `bars()` (agrupadas), `hbars()` e `donut()`. O
@@ -206,6 +211,35 @@ não conformidade, SLA nível de serviço e top 10 requerentes).
 - Período longo: `dayLabels()` trava em 800 dias e os gráficos diários passam a mostrar
   1 rótulo a cada N. Não pagina; exporta CSV (um arquivo, seções separadas por linha em
   branco) e PDF.
+
+### Relatório de atualização - Cliente (id 2)
+
+Reimplementação do deck que a Instant entrega ao cliente
+(`files/Atualização - <Cliente> <data>.pptx`): 7 seções na tela, 7 páginas no PDF — capa,
+legenda dos status, chamados por mês (Incidente × Requisição), chamados por tipo (tabela
+MÊS/INC/REQ + rosca), top 5 categorias, chamados por dia (Aberto × Fechado + linha de
+backlog) e chamados por horário.
+
+- **"Fechado" aqui é `closedate`**, não `solvedate`. O relatório central, na mesma tela,
+  usa `solvedate` para "encerrado". Os dois convivem de propósito — lá a pergunta é
+  "quando foi resolvido", aqui é "quando saiu da fila". Não unifique sem falar com a
+  Instant.
+- **Backlog** = chamados abertos antes do período e ainda não fechados na véspera, mais
+  (abertos − fechados) acumulado dia a dia; a legenda mostra o **último** valor. Com essa
+  definição a linha **não** desce de zero (todo fechado do período já foi contado antes) —
+  o −9 do deck original vinha de um backlog inicial calculado noutra base. O gráfico
+  desenha eixo negativo assim mesmo, para não esconder dado inconsistente.
+- **`comboLine()`** (`chart.class.php`) é o único gráfico com escala negativa: as barras
+  assentam na **linha do zero**, não no pé da área de plotagem. O `drawCombo()` do PDF faz
+  o mesmo — mexeu num, mexa no outro.
+- **`PluginServicereportsUpdatepdf` estende `PluginServicereportsCentralpdf`**: cabeçalho,
+  rodapé, `startSection()`, `grid()`, `drawBars()`, `drawHBars()` e `drawDonut()` vêm de
+  lá (por isso são `protected`, e o título do relatório é o `$reportTitle` do construtor).
+  Ao mexer no `centralpdf`, lembre que os **dois** relatórios usam aquele código.
+- O `drawDonut()` herdado põe a legenda em x=40 e passaria por cima da tabela de meses:
+  a rosca desta seção é o `drawTypeDonut()`, na metade direita, com legenda por baixo.
+- O eixo X de "Chamados por horário" traz **só as horas com chamado** (as 24 deixariam
+  metade do eixo vazio), e "Chamados por mês" cobre os meses do **período filtrado**.
 
 ## Relatórios de Gestão financeira — cuidados
 
@@ -307,6 +341,8 @@ fechamento, layout "Institucional", PDF via TCPDF, remoção do relatório 4), o
 60 ("Entidade vs. Analistas") e o relatório 61 ("Chamados por Status e Técnico", com o
 gráfico SVG e o PDF paisagem) e o "Relatório central de serviços" (Central de serviços ›
 Relatórios) já foram portados e validados no GLPI 11.0.8.
+**Pendente de port:** o **"Relatório de atualização - Cliente"** (Central de serviços ›
+Relatórios, id 2) e o `comboLine()` do `chart.class.php`, de 27/08.
 **Ao mexer na lógica aqui, porte lá na sequência** — divergência entre os dois repos é o
 principal risco do projeto.
 

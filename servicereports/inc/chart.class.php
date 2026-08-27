@@ -285,6 +285,135 @@ JS);
     }
 
     // =====================================================================
+    //  Barras agrupadas + linha (chamados por dia × backlog)
+    // =====================================================================
+
+    /**
+     * Escala de um eixo que pode descer abaixo de zero (o backlog fica
+     * negativo quando se fecha mais do que se abre).
+     *
+     * @return array{0:int,1:int,2:int} [piso, topo, passo]
+     */
+    public static function niceRange(int $min, int $max): array
+    {
+        [$top, $step] = PluginServicereportsAnalysts::niceScale(max($max, 0));
+        $bottom = $min < 0 ? -((int) ceil(abs($min) / $step) * $step) : 0;
+        return [$bottom, $top, $step];
+    }
+
+    /**
+     * Barras verticais agrupadas com uma linha por cima, no mesmo eixo.
+     *
+     * @param array<int,string> $labels
+     * @param array<int,array{name:string,color:string,data:array<int,int>}> $series barras
+     * @param array{name:string,color:string,data:array<int,int>} $line linha (aceita negativos)
+     */
+    public static function comboLine(array $labels, array $series, array $line): void
+    {
+        self::assets();
+
+        $keys = [];
+        foreach ($series as $s) {
+            $keys[] = ['label' => array_sum($s['data']) . ' - ' . $s['name'], 'color' => $s['color']];
+        }
+        $last   = $line['data'] === [] ? 0 : (int) end($line['data']);
+        $keys[] = ['label' => $last . ' - ' . $line['name'], 'color' => $line['color']];
+        self::legend($keys);
+
+        $n = count($labels);
+        if ($n === 0 || empty($series)) {
+            self::nodata();
+            return;
+        }
+
+        $max = 0;
+        foreach ($series as $s) {
+            $max = max($max, (int) max($s['data'] ?: [0]));
+        }
+        $max = max($max, (int) max($line['data'] ?: [0]));
+        $min = (int) min($line['data'] ?: [0]);
+        [$bottom, $top, $step] = self::niceRange($min, $max);
+
+        $k     = count($series);
+        $slot  = $n > 45 ? 20 : ($n > 25 ? 34 : 48);
+        $barW  = max(3.0, ($slot - 8) / $k);
+        $padL  = 46;
+        $padR  = 24;
+        $padT  = 26;
+        $padB  = $n > 20 ? 62 : 40;
+        $plotH = 300;
+        $plotW = max($n * $slot, 240);
+        $w     = $padL + $plotW + $padR;
+        $h     = $padT + $plotH + $padB;
+        $base  = $padT + $plotH;
+        $every = (int) max(1, ceil($n / 34));
+        $rot   = $n > 20;
+        $vals  = $n <= 32;
+
+        $span = max(1, $top - $bottom);
+        $yOf  = static fn (float $v): float => $base - (($v - $bottom) / $span) * $plotH;
+        $zero = $yOf(0);
+
+        echo "<div class='sr-ch-wrap'><svg class='sr-ch' width='$w' height='$h' viewBox='0 0 $w $h' role='img'>";
+
+        for ($v = $bottom; $v <= $top; $v += $step) {
+            $y = round($yOf((float) $v), 1);
+            echo "<line class='sr-ch-grid' x1='$padL' y1='$y' x2='" . round($padL + $plotW, 1) . "' y2='$y'/>";
+            echo "<text class='sr-ch-axis' x='" . ($padL - 8) . "' y='" . ($y + 4) . "' text-anchor='end'>$v</text>";
+        }
+        // A base do gráfico é a linha do zero, não o pé da área de plotagem.
+        echo "<line class='sr-ch-base' x1='$padL' y1='" . round($zero, 1) . "' x2='"
+            . round($padL + $plotW, 1) . "' y2='" . round($zero, 1) . "'/>";
+
+        foreach (array_values($labels) as $i => $label) {
+            $x0 = $padL + $i * $slot + ($slot - $barW * $k) / 2;
+            foreach (array_values($series) as $j => $s) {
+                $v = (int) ($s['data'][$i] ?? 0);
+                $x = $x0 + $j * $barW;
+                if ($v <= 0) {
+                    continue;
+                }
+                $y  = $yOf((float) $v);
+                $bh = $zero - $y;
+                $t  = self::tip((string) $label, [$s['name'] . ': ' . $v]);
+                echo "<rect class='sr-ch-hit' x='" . round($x, 1) . "' y='" . round($y, 1) . "'"
+                    . " width='" . round($barW, 1) . "' height='" . round($bh, 1) . "' fill='" . $s['color'] . "'$t></rect>";
+                if ($vals) {
+                    echo "<text class='sr-ch-val' x='" . round($x + $barW / 2, 1) . "' y='" . round($y - 4, 1) . "'"
+                        . " text-anchor='middle'>$v</text>";
+                }
+            }
+            if ($i % $every === 0) {
+                $lx = $padL + $i * $slot + $slot / 2;
+                $ly = $base + 14;
+                if ($rot) {
+                    echo "<text class='sr-ch-axis' x='$lx' y='$ly' text-anchor='end' transform='rotate(-40 $lx $ly)'>"
+                        . self::esc((string) $label) . "</text>";
+                } else {
+                    echo "<text class='sr-ch-axis' x='$lx' y='" . ($base + 16) . "' text-anchor='middle'>"
+                        . self::esc((string) $label) . "</text>";
+                }
+            }
+        }
+
+        $pts = [];
+        foreach (array_values($line['data']) as $i => $v) {
+            $pts[] = round($padL + $i * $slot + $slot / 2, 1) . ',' . round($yOf((float) $v), 1);
+        }
+        echo "<polyline fill='none' stroke='" . $line['color'] . "' stroke-width='2' stroke-linejoin='round'"
+            . " points='" . implode(' ', $pts) . "'/>";
+        foreach (array_values($line['data']) as $i => $v) {
+            $x = $padL + $i * $slot + $slot / 2;
+            $y = $yOf((float) $v);
+            $t = self::tip((string) ($labels[$i] ?? ''), [$line['name'] . ': ' . (int) $v]);
+            echo "<circle class='sr-ch-hit' cx='" . round($x, 1) . "' cy='" . round($y, 1) . "' r='3.2' fill='"
+                . $line['color'] . "'$t></circle>";
+        }
+
+        echo "</svg></div>";
+    }
+
+    // =====================================================================
     //  Barras horizontais (top categorias / top usuários)
     // =====================================================================
 

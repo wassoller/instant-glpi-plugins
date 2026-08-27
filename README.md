@@ -27,10 +27,15 @@ Depois disso, ainda sem mudança de schema (atualizar é copiar os arquivos e re
   matriz analista × entidade com o tempo de tarefas, somado pela **mesma regra do Extrato**.
   As colunas são as entidades **folha**; os nós de agrupamento da árvore ("Standard",
   "Premium") só aparecem se tiverem horas no período.
+- **2026-08-27** — a **Central de serviços** ganhou a sub-aba **Relatórios**, com o
+  **"Relatório central de serviços"** e o **"Relatório de atualização - Cliente"**
+  (reimplementação do deck de atualização entregue ao cliente: chamados por mês, por tipo,
+  top 5 categorias, por dia com linha de backlog e por horário). Ambos exportam CSV e PDF.
+  Analistas ganhou o **"Chamados por Status e Técnico"** (barras empilhadas + PDF paisagem).
 
 Detalhes no [CHANGELOG.md](CHANGELOG.md). A versão para **GLPI 11** está no repositório
-`instant-glpi11-plugins` e **já tem essas mudanças** (rodada 0.2.1 de 2026-08-26,
-validada no GLPI 11.0.8).
+`instant-glpi11-plugins`; ela acompanha tudo até 2026-08-27 (0.4.0, validada no GLPI
+11.0.8), **menos** o "Relatório de atualização - Cliente", ainda a portar.
 
 ## Alvo
 - **GLPI 10.0.x** (validado contra 10.0.26), PHP 8.x.
@@ -47,6 +52,8 @@ Composição do serviço, Financeiro (valores historizados) e Configuração NMS
 Reimplementação de 3 blocos do *Verdana vReports* (interno `vreports`):
 **Central de serviços**, **Gestão financeira** (lê dados do `managedservices`) e
 **Analistas**. Menu: **Gerência > Relatórios**.
+Central de serviços tem **Dashboard** (KPIs do mês) e **Relatórios** (Relatório central de
+serviços e Relatório de atualização - Cliente, com export CSV e PDF);
 Gestão financeira tem **Dashboards** (KPIs + gráficos) e **Relatórios** (Extrato
 financeiro e Faturamento, com export CSV e PDF gerado por TCPDF);
 Analistas tem Técnicos, Relatórios (tarefas por técnico, deslocamentos, horas fora de

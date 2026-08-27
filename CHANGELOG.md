@@ -4,6 +4,39 @@ Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/).
 Alvo: **GLPI 10.0.x** (validado em 10.0.26). A versão para GLPI 11 tem changelog
 próprio no repositório `instant-glpi11-plugins`.
 
+## [0.2.2] — 2026-08-27 (não lançado)
+
+Dois ajustes no **relatório 60 — "Entidade vs. Analistas"**, pedidos pela Instant depois
+de olhar o relatório com dados reais. Sem mudança de schema: atualizar é copiar os
+arquivos e recarregar.
+
+### Alterado
+- **Período volta a ser pela data da tarefa (`tt.date`), e o chamado não precisa mais
+  estar fechado.** O relatório nasceu (26/08) somando pela regra do **Extrato
+  financeiro** — o chamado entrava pela `closedate` e levava todas as tarefas dele —, o
+  que deixava de fora **toda** tarefa de chamado ainda em aberto. Como o que se quer aqui
+  é a *somatória de tarefas do analista no período*, e não o faturável, a consulta passa a
+  recortar a **tarefa** pela própria data: entram todas as tarefas lançadas no intervalo,
+  esteja o chamado fechado, solucionado ou em aberto. Com isso o relatório 60 deixa de ser
+  a exceção e volta à mesma regra dos relatórios 57 e 59.
+  **Consequência esperada:** os números sobem em relação à versão anterior, e continuam
+  **não** batendo com o Extrato financeiro da mesma entidade — lá o recorte é por
+  fechamento, e só o que está ligado a um serviço gerenciado conta. O texto de ajuda
+  acima da tabela foi reescrito para dizer isso.
+
+### Adicionado
+- **Última linha com o período do relatório.** Depois dos dados (e depois da linha de
+  totais) sai `Período do relatório: 01/08/2026 a 14/08/2026`, com as datas exatamente
+  como pedidas no filtro, em `d/m/Y`. Vale para a **tela** e para o **CSV** (última linha
+  do arquivo), para que uma planilha ou uma impressão solta continue dizendo a que período
+  se refere. Na tela a linha fica **fora** da tabela de propósito: o `<tfoot>` de totais é
+  `position: sticky` e, ao rolar até o fim, cobriria uma segunda linha do rodapé.
+
+### Paridade
+- Portado no mesmo dia para o repo **GLPI 11** (`instant-glpi11-plugins`, 0.2.2): mesma
+  mudança de `WHERE`, mesmo `$periodLabel`, seção do relatório 60 idêntica byte a byte
+  entre os dois `front/analysts.php` (a menos do prefixo de classe).
+
 ## [0.2.0] — 2026-08-19 (não lançado)
 
 Rodada de ajustes pedida pela Instant sobre o que já rodava em produção. No caminho

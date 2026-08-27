@@ -17,6 +17,8 @@ $start    = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['start_date'] ?? '') ? $_G
 $end      = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['end_date'] ?? '') ? $_GET['end_date'] : date('Y-m-t');
 $startDt  = $start . ' 00:00:00';
 $endDt    = $end . ' 23:59:59';
+// Rótulo do período pedido no filtro — impresso como última linha do relatório 60.
+$periodLabel = date('d/m/Y', strtotime($start)) . ' ' . __('a', 'servicereports') . ' ' . date('d/m/Y', strtotime($end));
 
 // Exportação CSV — deve ocorrer antes de qualquer saída HTML.
 if (($_GET['export'] ?? '') === 'csv' && $tab === 'relatorios' && in_array($report, [57, 59, 60], true)) {
@@ -68,6 +70,8 @@ if (($_GET['export'] ?? '') === 'csv' && $tab === 'relatorios' && in_array($repo
         }
         $line[] = PluginServicereportsAnalysts::secToHms((int) $m['grand']);
         fputcsv($out, array_map($dec, $line), ';', '"', '');
+        // Última linha: o período solicitado no filtro (mesma informação da tela).
+        fputcsv($out, array_map($dec, ['Período do relatório', $periodLabel]), ';', '"', '');
     } else {
         $rows = PluginServicereportsAnalysts::getOutOfHoursReport($startDt, $endDt, $techId, $ticketId);
         fputcsv($out, ['Técnico', 'ID do chamado', 'Tempo total de tarefas', 'Tempo fora do expediente', 'Entidade'], ';', '"', '');
@@ -287,13 +291,14 @@ if ($tab === 'tecnicos') {
             .sr-eva tbody tr:nth-child(even) td.sr-eva-name { background: var(--tblr-bg-surface-secondary, #f8f9fa); }
             .sr-eva td.sr-eva-zero { color: var(--tblr-secondary, #909296); }
             .sr-eva tfoot th { position: sticky; bottom: 0; z-index: 3; background: var(--tblr-bg-surface, #fff); }
+            .sr-eva-period { font-size: 0.9em; }
         </style>";
 
         echo "<h3 class='mb-2'>" . __('Entidade vs. Analistas', 'servicereports') . "</h3>";
         echo "<div class='text-muted mb-3' style='font-size:0.85em'>"
-            . __('Tempo de tarefas por analista e entidade. Mesma regra de somatória do Extrato financeiro: '
-               . 'o chamado entra no período em que foi FECHADO (data de fechamento) e leva junto todas as suas '
-               . 'tarefas, inclusive as de meses anteriores. Chamado em aberto (ou apenas solucionado) não entra.', 'servicereports')
+            . __('Tempo de tarefas por analista e entidade. Entram TODAS as tarefas lançadas no período '
+               . '(pela data da tarefa), esteja o chamado fechado ou ainda em aberto. Por isso o número não é '
+               . 'o faturável do Extrato financeiro, que recorta o chamado pela data de fechamento.', 'servicereports')
             . "</div>";
         echo "<div class='mb-3 text-muted'>";
         echo __('Total de horas no período', 'servicereports') . ": <strong>" . PluginServicereportsAnalysts::secToHms((int) $m['grand']) . "</strong>";
@@ -330,6 +335,11 @@ if ($tab === 'tecnicos') {
             echo "<th class='text-center'>" . PluginServicereportsAnalysts::secToHms((int) $m['grand']) . "</th>";
             echo "</tr></tfoot></table></div>";
         }
+        // Última linha do relatório: o período solicitado no filtro. Fica fora
+        // da tabela porque o rodapé de totais é `position: sticky` e cobriria
+        // uma segunda linha do <tfoot> ao rolar até o fim.
+        echo "<div class='sr-eva-period mt-2'>" . __('Período do relatório', 'servicereports')
+            . ': <strong>' . $periodLabel . '</strong></div>';
     } else {
         echo "<div class='alert alert-info'>" . __('Selecione um relatório.', 'servicereports') . "</div>";
     }

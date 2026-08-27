@@ -132,11 +132,15 @@ Os plugins já rodam em **produção** no GLPI 10 da Instant
   Vale para todas as consultas de tarefa em `Analysts` (já corrigido).
 - No relatório de tarefas, **"Categoria" = categoria do chamado** (`glpi_tickets.itilcategories_id`),
   não `taskcategories_id` (quase sempre vazia). Número do chamado é link.
-- **Relatório 60 — "Entidade vs. Analistas"** (matriz analista × entidade, id 60) é a
-  **exceção da regra do `tt.date`** acima: ele soma pela lógica do **Extrato financeiro** — período pela
-  `closedate` do chamado, levando **todas** as tarefas dele — e não por `tt.date`. Não
-  recorta por serviço gerenciado (entram todos os chamados fechados no período, decisão da
-  Instant em 2026-08-26), então o número **não** é o faturável do extrato. Colunas = as
+- **Relatório 60 — "Entidade vs. Analistas"** (matriz analista × entidade, id 60) segue a
+  regra do `tt.date` acima: o período recorta a **tarefa** pela data dela, e entram **todas**
+  as tarefas do intervalo — chamado **fechado ou ainda em aberto** (a Instant pediu em
+  2026-08-27; antes o recorte era pela `closedate`, na lógica do Extrato, e as tarefas de
+  chamado aberto ficavam de fora). Não recorta por serviço gerenciado, então o número
+  **não** é o faturável do extrato — a pergunta aqui é "quanto de tarefa foi lançado no
+  período". A **última linha** da tela e do CSV imprime o período pedido no filtro
+  (`$periodLabel`, em `d/m/Y`); na tela ela fica **fora** da tabela, porque o `<tfoot>` é
+  `position: sticky` e cobriria uma segunda linha. Colunas = as
   entidades visíveis na sessão que são **folhas** da árvore (`getVisibleEntities()`,
   campo `is_leaf`), inclusive as zeradas; os nós de **agrupamento** ("Standard",
   "Premium", a raiz) são nível de árvore e não cliente, e ficam de fora — **exceto** se

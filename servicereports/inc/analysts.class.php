@@ -306,16 +306,16 @@ class PluginServicereportsAnalysts
     /**
      * Relatório 60 — Entidade vs. Analistas.
      *
-     * Matriz analista × entidade com o tempo de tarefas, somado pela **mesma
-     * regra do extrato financeiro** (ver `PluginServicereportsFinancial::getExtrato`):
-     * o período recorta o chamado pela data de **fechamento** (`closedate`) e,
-     * uma vez dentro, entram **todas** as tarefas dele — inclusive as lançadas
-     * em meses anteriores. Chamado ainda aberto (ou apenas *Solucionado*, com
-     * `closedate` NULL) não conta em período nenhum. É por isso que este
-     * relatório **não** usa `tt.date` como os relatórios 57/59.
+     * Matriz analista × entidade com o tempo de tarefas. O período recorta a
+     * **tarefa** pela sua própria data (`tt.date`), como nos relatórios 57/59:
+     * entram **todas** as tarefas lançadas no intervalo, esteja o chamado
+     * fechado ou ainda em aberto (decisão da Instant, 2026-08-27 — antes o
+     * recorte era pela `closedate` do chamado, na regra do extrato financeiro,
+     * e as tarefas de chamados abertos ficavam de fora).
      *
-     * Diferença para o extrato: aqui não há recorte por serviço gerenciado —
-     * entram todos os chamados fechados no período (decisão da Instant, 2026-08-26).
+     * Por isso o número **não** é o faturável do Extrato: aqui a pergunta é
+     * "quanto de tarefa foi lançado no período", não "o que fechou no período".
+     * Também não há recorte por serviço gerenciado.
      *
      * As colunas são as entidades visíveis na sessão que são **folhas** da
      * árvore (podem sair zeradas); as linhas são os analistas com horas no
@@ -345,7 +345,7 @@ class PluginServicereportsAnalysts
             "SELECT tt.users_id_tech tech, glpi_tickets.entities_id ent, COALESCE(SUM(tt.actiontime),0) secs
              FROM glpi_tickettasks tt
              INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tt.tickets_id AND glpi_tickets.is_deleted=0
-             WHERE tt.users_id_tech>0 AND glpi_tickets.closedate BETWEEN '$s' AND '$e' $ent $extra
+             WHERE tt.users_id_tech>0 AND tt.date BETWEEN '$s' AND '$e' $ent $extra
              GROUP BY tt.users_id_tech, glpi_tickets.entities_id"
         ) as $r) {
             $cells[(int) $r['tech']][(int) $r['ent']] = (int) $r['secs'];

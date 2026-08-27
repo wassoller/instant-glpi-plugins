@@ -268,7 +268,9 @@ class PluginServicereportsServicecentral
     }
 
     /**
-     * Top usuários **requerentes** dos chamados abertos no período.
+     * Top **requerentes** dos chamados abertos no período — usuários do GLPI
+     * **e** e-mails avulsos (quem abriu por e-mail sem cadastro entra pelo
+     * `alternative_email`, que o GLPI grava com `users_id=0`).
      *
      * @return array{rows:array<int,array{label:string,value:int,note:string}>,total:int}
      */
@@ -279,29 +281,34 @@ class PluginServicereportsServicecentral
         $e   = $DB->escape($end);
         $ent = getEntitiesRestrictRequest('AND', 'glpi_tickets');
 
+        // Requerente do chamado: ou um usuário do GLPI (`users_id`), ou apenas
+        // um e-mail (`alternative_email`, com `users_id=0`) — é assim que fica
+        // quem abriu chamado por e-mail sem ter cadastro. Os dois entram na
+        // lista; o agrupamento usa o e-mail só quando não há usuário.
+        $join = "INNER JOIN glpi_tickets_users tu ON tu.tickets_id=glpi_tickets.id
+                    AND tu.type=" . CommonITILActor::REQUESTER . "
+                    AND (tu.users_id > 0 OR (tu.alternative_email IS NOT NULL AND tu.alternative_email <> ''))";
+        $where = "WHERE glpi_tickets.is_deleted=0 AND glpi_tickets.date BETWEEN '$s' AND '$e' $ent";
+        $key   = "IF(tu.users_id > 0, '', tu.alternative_email)";
+
         $all = self::rows(
-            "SELECT tu.users_id uid, COUNT(DISTINCT glpi_tickets.id) n
-             FROM glpi_tickets
-             INNER JOIN glpi_tickets_users tu ON tu.tickets_id=glpi_tickets.id
-                AND tu.type=" . CommonITILActor::REQUESTER . " AND tu.users_id>0
-             WHERE glpi_tickets.is_deleted=0 AND glpi_tickets.date BETWEEN '$s' AND '$e' $ent
-             GROUP BY tu.users_id ORDER BY n DESC LIMIT " . max(1, $limit)
+            "SELECT tu.users_id uid, $key email, COUNT(DISTINCT glpi_tickets.id) n
+             FROM glpi_tickets $join $where
+             GROUP BY tu.users_id, $key ORDER BY n DESC LIMIT " . max(1, $limit)
         );
 
         $total = 0;
         foreach (self::rows(
-            "SELECT COUNT(DISTINCT glpi_tickets.id) n FROM glpi_tickets
-             INNER JOIN glpi_tickets_users tu ON tu.tickets_id=glpi_tickets.id
-                AND tu.type=" . CommonITILActor::REQUESTER . " AND tu.users_id>0
-             WHERE glpi_tickets.is_deleted=0 AND glpi_tickets.date BETWEEN '$s' AND '$e' $ent"
+            "SELECT COUNT(DISTINCT glpi_tickets.id) n FROM glpi_tickets $join $where"
         ) as $r) {
             $total = (int) $r['n'];
         }
 
         $rows = [];
         foreach ($all as $r) {
+            $uid = (int) $r['uid'];
             $rows[] = [
-                'label' => getUserName((int) $r['uid']),
+                'label' => $uid > 0 ? getUserName($uid) : (string) $r['email'],
                 'value' => (int) $r['n'],
                 'note'  => '',
             ];

@@ -40,6 +40,10 @@ foi descartada a pedido). Sem mudança de schema.
 ### Regras (confirmadas com a Instant em 2026-08-27)
 - **Aberto** = `glpi_tickets.date` (data de abertura); é por ela que recortam as seções
   2, 4, 5, 6 e 7.
+- **Requerente** = o ator Requerente do chamado, seja um **usuário do GLPI** ou apenas um
+  **e-mail** (`glpi_tickets_users.alternative_email`, com `users_id=0` — é assim que fica
+  quem abre chamado por e-mail sem ter cadastro). Os dois entram no Top 10, ordenados
+  juntos; o e-mail aparece como rótulo.
 - **Encerrado** = tem `solvedate` no período — inclui chamado que já avançou para
   **Fechado** (no GLPI, Fechado passou por Solucionado e guarda a data). Por isso o total
   de encerrados pode passar o de abertos no mesmo período, como no relatório original.

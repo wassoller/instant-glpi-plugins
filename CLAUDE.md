@@ -200,7 +200,9 @@ não conformidade, SLA nível de serviço e top 10 requerentes).
   Pendente — somar de novo conta o mesmo tempo duas vezes), chamado **sem SLA** conta como
   dentro do prazo; "fora do SLA de atendimento" = assumido depois do `time_to_own` (ou não
   assumido com prazo vencido), pelo `takeintoaccountdate` com fallback em
-  `takeintoaccount_delay_stat`.
+  `takeintoaccount_delay_stat`. **Requerente** no Top 10 não é só usuário cadastrado:
+  entra também quem abriu por e-mail sem cadastro, pelo
+  `glpi_tickets_users.alternative_email` com `users_id=0` (pedido da Instant, 27/08).
 - Período longo: `dayLabels()` trava em 800 dias e os gráficos diários passam a mostrar
   1 rótulo a cada N. Não pagina; exporta CSV (um arquivo, seções separadas por linha em
   branco) e PDF.

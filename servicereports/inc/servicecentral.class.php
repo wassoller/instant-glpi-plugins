@@ -251,11 +251,15 @@ class PluginServicereportsServicecentral
 
         $rows = [];
         foreach (array_slice($all, 0, $limit) as $r) {
-            $id     = (int) $r['cat'];
+            $id   = (int) $r['cat'];
+            $name = $id > 0 ? Dropdown::getDropdownName('glpi_itilcategories', $id) : '';
+            if ($id > 0 && trim(strip_tags($name)) === '') {
+                // Categoria apagada (ou fora do escopo): sem isso a barra sairia
+                // com o rótulo vazio e ninguém saberia do que se trata.
+                $name = sprintf(__('Categoria #%d', 'servicereports'), $id);
+            }
             $rows[] = [
-                'label' => $id > 0
-                    ? Dropdown::getDropdownName('glpi_itilcategories', $id)
-                    : __('Sem categoria', 'servicereports'),
+                'label' => $id > 0 ? $name : __('Sem categoria', 'servicereports'),
                 'value' => (int) $r['n'],
                 'note'  => $total > 0 ? number_format((int) $r['n'] / $total * 100, 2, ',', '.') . '%' : '',
             ];

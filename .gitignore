@@ -1,5 +1,9 @@
 # Ambiente de teste local do GLPI
 /.testenv/
+
+# Arquivos que o usuário deixa aqui só para o agente ler (referências, PDFs,
+# exports). Nunca versionar.
+/files/
 /glpi-test/
 /glpi-*/
 *.sql.gz

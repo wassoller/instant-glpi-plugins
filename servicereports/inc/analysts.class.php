@@ -4,7 +4,7 @@
  *  - Técnicos: performance por técnico (horas de tarefas, chamados por tipo,
  *    satisfação, pontos).
  *  - Relatórios: Tarefas por Técnico (57), Deslocamentos (58), Horas fora de
- *    expediente (59).
+ *    expediente (59), Entidade vs. Analistas (60).
  *
  * Jornada padrão de expediente: Seg–Sex 08:00–18:00 (ajustável).
  */
@@ -261,6 +261,110 @@ class PluginServicereportsAnalysts
             $agg[$key]['outside'] += self::outsideWorkSeconds((string) $r['begin'], (string) $r['end']);
         }
         return array_values($agg);
+    }
+
+    /**
+     * Entidades visíveis na sessão (colunas do relatório 60), ordenadas pela
+     * árvore. O rótulo é o nome **curto** (só a folha), como no extrato; o
+     * completename fica no `title` da coluna.
+     *
+     * @return array<int,array{name:string,completename:string}>
+     */
+    public static function getVisibleEntities(): array
+    {
+        global $DB;
+
+        $ids = $_SESSION['glpiactiveentities'] ?? [];
+        if (empty($ids)) {
+            return [];
+        }
+        $in  = implode(',', array_map('intval', $ids));
+        $out = [];
+        foreach ($DB->request("SELECT id, name, completename FROM glpi_entities WHERE id IN ($in) ORDER BY completename") as $r) {
+            $id = (int) $r['id'];
+            $out[$id] = [
+                'name'         => $id === 0 ? Dropdown::getDropdownName('glpi_entities', 0) : (string) $r['name'],
+                'completename' => (string) ($r['completename'] ?: $r['name']),
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Relatório 60 — Entidade vs. Analistas.
+     *
+     * Matriz analista × entidade com o tempo de tarefas, somado pela **mesma
+     * regra do extrato financeiro** (ver `PluginServicereportsFinancial::getExtrato`):
+     * o período recorta o chamado pela data de **fechamento** (`closedate`) e,
+     * uma vez dentro, entram **todas** as tarefas dele — inclusive as lançadas
+     * em meses anteriores. Chamado ainda aberto (ou apenas *Solucionado*, com
+     * `closedate` NULL) não conta em período nenhum. É por isso que este
+     * relatório **não** usa `tt.date` como os relatórios 57/59.
+     *
+     * Diferença para o extrato: aqui não há recorte por serviço gerenciado —
+     * entram todos os chamados fechados no período (decisão da Instant, 2026-08-26).
+     *
+     * As colunas são **todas** as entidades visíveis na sessão (podem sair
+     * zeradas); as linhas são os analistas com horas no período, ou apenas o
+     * escolhido no filtro.
+     *
+     * @param int $techId 0 = todos os analistas com horas no período
+     * @return array{entities:array<int,array{name:string,completename:string}>,
+     *               rows:array<int,array{name:string,cells:array<int,int>,total:int}>,
+     *               totals:array<int,int>, grand:int}
+     */
+    public static function getEntityAnalystMatrix(string $start, string $end, int $techId = 0): array
+    {
+        global $DB;
+
+        $s     = $DB->escape($start);
+        $e     = $DB->escape($end);
+        $ent   = getEntitiesRestrictRequest('AND', 'glpi_tickets');
+        $extra = $techId > 0 ? ' AND tt.users_id_tech=' . (int) $techId : '';
+
+        $entities = self::getVisibleEntities();
+
+        $cells = [];
+        foreach ($DB->request(
+            "SELECT tt.users_id_tech tech, glpi_tickets.entities_id ent, COALESCE(SUM(tt.actiontime),0) secs
+             FROM glpi_tickettasks tt
+             INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tt.tickets_id AND glpi_tickets.is_deleted=0
+             WHERE tt.users_id_tech>0 AND glpi_tickets.closedate BETWEEN '$s' AND '$e' $ent $extra
+             GROUP BY tt.users_id_tech, glpi_tickets.entities_id"
+        ) as $r) {
+            $cells[(int) $r['tech']][(int) $r['ent']] = (int) $r['secs'];
+        }
+
+        // Analista escolhido no filtro aparece mesmo sem horas no período
+        // (linha zerada), como nos cartões de performance.
+        if ($techId > 0 && !isset($cells[$techId])) {
+            $cells[$techId] = [];
+        }
+
+        $rows   = [];
+        $totals = [];
+        $grand  = 0;
+        foreach ($cells as $tech => $byEntity) {
+            $total = 0;
+            foreach ($byEntity as $entId => $secs) {
+                // Entidade fora da lista de colunas (não deve ocorrer com a
+                // sessão consistente) entra na tabela para não sumir com horas.
+                if (!isset($entities[$entId])) {
+                    $entities[$entId] = [
+                        'name'         => PluginServicereportsFinancial::entityName($entId),
+                        'completename' => Dropdown::getDropdownName('glpi_entities', $entId),
+                    ];
+                }
+                $total            += $secs;
+                $totals[$entId]    = ($totals[$entId] ?? 0) + $secs;
+            }
+            $grand      += $total;
+            $rows[$tech] = ['name' => getUserName($tech), 'cells' => $byEntity, 'total' => $total];
+        }
+
+        uasort($rows, static fn ($a, $b) => strnatcasecmp($a['name'], $b['name']));
+
+        return ['entities' => $entities, 'rows' => $rows, 'totals' => $totals, 'grand' => $grand];
     }
 
     /**

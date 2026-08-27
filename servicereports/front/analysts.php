@@ -19,8 +19,9 @@ $startDt  = $start . ' 00:00:00';
 $endDt    = $end . ' 23:59:59';
 
 // Exportação CSV — deve ocorrer antes de qualquer saída HTML.
-if (($_GET['export'] ?? '') === 'csv' && $tab === 'relatorios' && in_array($report, [57, 59], true)) {
-    $filename = $report === 57 ? 'tarefas_por_tecnico.csv' : 'horas_fora_expediente.csv';
+if (($_GET['export'] ?? '') === 'csv' && $tab === 'relatorios' && in_array($report, [57, 59, 60], true)) {
+    $filename = ['57' => 'tarefas_por_tecnico.csv', '59' => 'horas_fora_expediente.csv',
+                 '60' => 'entidade_vs_analistas.csv'][(string) $report];
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     $out = fopen('php://output', 'w');
@@ -43,6 +44,30 @@ if (($_GET['export'] ?? '') === 'csv' && $tab === 'relatorios' && in_array($repo
                 PluginServicereportsAnalysts::secToHms((int) $r['actiontime']),
             ]), ';', '"', '');
         }
+    } elseif ($report === 60) {
+        // Matriz analista × entidade: mesma tabela da tela, sem paginação.
+        $m       = PluginServicereportsAnalysts::getEntityAnalystMatrix($startDt, $endDt, $techId);
+        $entCols = array_keys($m['entities']);
+        $header  = ['Analista'];
+        foreach ($entCols as $entId) {
+            $header[] = $m['entities'][$entId]['name'];
+        }
+        $header[] = 'Total';
+        fputcsv($out, array_map($dec, $header), ';', '"', '');
+        foreach ($m['rows'] as $row) {
+            $line = [$row['name']];
+            foreach ($entCols as $entId) {
+                $line[] = PluginServicereportsAnalysts::secToHms((int) ($row['cells'][$entId] ?? 0));
+            }
+            $line[] = PluginServicereportsAnalysts::secToHms((int) $row['total']);
+            fputcsv($out, array_map($dec, $line), ';', '"', '');
+        }
+        $line = ['Total'];
+        foreach ($entCols as $entId) {
+            $line[] = PluginServicereportsAnalysts::secToHms((int) ($m['totals'][$entId] ?? 0));
+        }
+        $line[] = PluginServicereportsAnalysts::secToHms((int) $m['grand']);
+        fputcsv($out, array_map($dec, $line), ';', '"', '');
     } else {
         $rows = PluginServicereportsAnalysts::getOutOfHoursReport($startDt, $endDt, $techId, $ticketId);
         fputcsv($out, ['Técnico', 'ID do chamado', 'Tempo total de tarefas', 'Tempo fora do expediente', 'Entidade'], ';', '"', '');
@@ -144,6 +169,7 @@ if ($tab === 'tecnicos') {
         57 => __('Relatório de Tarefas por Técnico', 'servicereports'),
         58 => __('Relatório de Deslocamentos por Técnico', 'servicereports'),
         59 => __('Relatório de Horas fora de expediente de Técnicos por Chamados', 'servicereports'),
+        60 => __('Entidade vs. Analistas', 'servicereports'),
     ];
     echo "<form method='get' action='" . Html::cleanInputText($base) . "' class='mb-3' id='reportform'>";
     echo Html::hidden('tab', ['value' => 'relatorios']);
@@ -156,7 +182,7 @@ if ($tab === 'tecnicos') {
 
     $renderFilter('relatorios');
 
-    if (in_array($report, [57, 59], true)) {
+    if (in_array($report, [57, 59, 60], true)) {
         $expUrl = $base . '?' . http_build_query([
             'tab' => 'relatorios', 'report' => $report, 'start_date' => $start,
             'end_date' => $end, 'technician_id' => $techId, 'ticket_id' => $ticketId, 'export' => 'csv',
@@ -243,6 +269,67 @@ if ($tab === 'tecnicos') {
         }
         echo "</tbody></table></div>";
         PluginServicereportsPager::show($base, $pagerParams, $offset, $total);
+    } elseif ($report === 60) {
+        // Matriz analista × entidade. Não pagina: a tabela inteira é o relatório
+        // (a planilha da Instant tem uma coluna por cliente); rola na horizontal
+        // com a coluna do analista fixa à esquerda.
+        $m       = PluginServicereportsAnalysts::getEntityAnalystMatrix($startDt, $endDt, $techId);
+        $entCols = array_keys($m['entities']);
+
+        echo "<style>
+            .sr-eva { max-height: 70vh; overflow: auto; }
+            .sr-eva table { table-layout: auto; margin-bottom: 0; }
+            .sr-eva th, .sr-eva td { white-space: nowrap; }
+            .sr-eva thead th { position: sticky; top: 0; z-index: 3; background: var(--tblr-bg-surface, #fff); }
+            .sr-eva .sr-eva-name { position: sticky; left: 0; z-index: 2; background: var(--tblr-bg-surface, #fff); }
+            .sr-eva thead .sr-eva-name { z-index: 4; }
+            .sr-eva tbody tr:nth-child(even) td { background: var(--tblr-bg-surface-secondary, #f8f9fa); }
+            .sr-eva tbody tr:nth-child(even) td.sr-eva-name { background: var(--tblr-bg-surface-secondary, #f8f9fa); }
+            .sr-eva td.sr-eva-zero { color: var(--tblr-secondary, #909296); }
+            .sr-eva tfoot th { position: sticky; bottom: 0; z-index: 3; background: var(--tblr-bg-surface, #fff); }
+        </style>";
+
+        echo "<h3 class='mb-2'>" . __('Entidade vs. Analistas', 'servicereports') . "</h3>";
+        echo "<div class='text-muted mb-3' style='font-size:0.85em'>"
+            . __('Tempo de tarefas por analista e entidade. Mesma regra de somatória do Extrato financeiro: '
+               . 'o chamado entra no período em que foi FECHADO (data de fechamento) e leva junto todas as suas '
+               . 'tarefas, inclusive as de meses anteriores. Chamado em aberto (ou apenas solucionado) não entra.', 'servicereports')
+            . "</div>";
+        echo "<div class='mb-3 text-muted'>";
+        echo __('Total de horas no período', 'servicereports') . ": <strong>" . PluginServicereportsAnalysts::secToHms((int) $m['grand']) . "</strong>";
+        echo "</div>";
+
+        if (empty($entCols)) {
+            echo "<div class='alert alert-info'>" . __('Nenhuma entidade visível na sessão.', 'servicereports') . "</div>";
+        } else {
+            echo "<div class='sr-eva table-responsive'><table class='table table-sm table-bordered'>";
+            echo "<thead><tr><th class='sr-eva-name'>" . __('Analista', 'servicereports') . "</th>";
+            foreach ($entCols as $entId) {
+                $e = $m['entities'][$entId];
+                echo "<th class='text-center' title='" . Html::cleanInputText($e['completename']) . "'>" . $e['name'] . "</th>";
+            }
+            echo "<th class='text-center'>" . __('Total', 'servicereports') . "</th></tr></thead><tbody>";
+
+            foreach ($m['rows'] as $row) {
+                echo "<tr><td class='sr-eva-name'>" . $row['name'] . "</td>";
+                foreach ($entCols as $entId) {
+                    $sec  = (int) ($row['cells'][$entId] ?? 0);
+                    $cls  = $sec > 0 ? '' : ' sr-eva-zero';
+                    echo "<td class='text-center$cls'>" . PluginServicereportsAnalysts::secToHms($sec) . "</td>";
+                }
+                echo "<td class='text-center'><strong>" . PluginServicereportsAnalysts::secToHms((int) $row['total']) . "</strong></td></tr>";
+            }
+            if (empty($m['rows'])) {
+                echo "<tr><td colspan='" . (count($entCols) + 2) . "' class='text-center text-muted'>"
+                    . __('Nenhum item encontrado', 'servicereports') . "</td></tr>";
+            }
+            echo "</tbody><tfoot><tr><th class='sr-eva-name'>" . __('Total', 'servicereports') . "</th>";
+            foreach ($entCols as $entId) {
+                echo "<th class='text-center'>" . PluginServicereportsAnalysts::secToHms((int) ($m['totals'][$entId] ?? 0)) . "</th>";
+            }
+            echo "<th class='text-center'>" . PluginServicereportsAnalysts::secToHms((int) $m['grand']) . "</th>";
+            echo "</tr></tfoot></table></div>";
+        }
     } else {
         echo "<div class='alert alert-info'>" . __('Selecione um relatório.', 'servicereports') . "</div>";
     }

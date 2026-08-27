@@ -17,6 +17,15 @@ formato pedido pelo cliente (listagem de chamados com custos, PDF em paisagem co
 título próprios), **paginação de 10 em 10** nos relatórios e a correção de três bugs
 relevantes — dashboard em branco quando a sessão está restrita a uma entidade, categoria-pai
 não selecionável em Serviços Gerenciados e chamados invisíveis para serviço recursivo.
+
+Depois disso, ainda sem mudança de schema (atualizar é copiar os arquivos e recarregar):
+- **2026-08-25** — o período dos relatórios financeiros passou a ser a **data de fechamento**
+  do chamado (que leva junto todas as tarefas dele); o Extrato ganhou o layout
+  "Institucional" e virou **PDF de verdade** (TCPDF, no lugar da impressão do navegador,
+  que cortava dados); o relatório "Fatura de serviços detalhada" foi **removido**.
+- **2026-08-26** — novo relatório **"Entidade vs. Analistas"** em Analistas › Relatórios:
+  matriz analista × entidade com o tempo de tarefas, somado pela **mesma regra do Extrato**.
+
 Detalhes no [CHANGELOG.md](CHANGELOG.md). A versão para **GLPI 11** está no repositório
 `instant-glpi11-plugins` e **ainda não** tem essas mudanças.
 
@@ -36,9 +45,10 @@ Reimplementação de 3 blocos do *Verdana vReports* (interno `vreports`):
 **Central de serviços**, **Gestão financeira** (lê dados do `managedservices`) e
 **Analistas**. Menu: **Gerência > Relatórios**.
 Gestão financeira tem **Dashboards** (KPIs + gráficos) e **Relatórios** (Extrato
-financeiro e Faturamento, com export CSV e versão imprimível/PDF);
+financeiro e Faturamento, com export CSV e PDF gerado por TCPDF);
 Analistas tem Técnicos, Relatórios (tarefas por técnico, deslocamentos, horas fora de
-expediente) e Mapas. As listagens paginam de 10 em 10; CSV e PDF saem completos.
+expediente e **Entidade vs. Analistas**) e Mapas. As listagens paginam de 10 em 10;
+CSV e PDF saem completos — a matriz de "Entidade vs. Analistas" também não pagina.
 
 ## Versão GLPI 11
 Este repositório é a versão **GLPI 10.0.x**. O port para **GLPI 11.0.x** está no
@@ -49,6 +59,7 @@ repositório separado **`instant-glpi11-plugins`** (classes namespaced em `src/`
 managedservices/     # plugin GLPI 10 (copiar para glpi/plugins/managedservices)
 servicereports/      # plugin GLPI 10 (copiar para glpi/plugins/servicereports)
   inc/pager.class.php     # paginação (10 por página) das listagens de relatório
+  inc/extratopdf.class.php# renderizador TCPDF do Extrato financeiro (par da tela)
   pics/instant-logo.png   # logo usada no cabeçalho do PDF do Extrato (trocável)
 docs/recon/          # notas de engenharia reversa (modelo de dados, KPIs, telas)
 docs/INSTALL.md      # passo a passo de instalação via git clone (também em .pdf)

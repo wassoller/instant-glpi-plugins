@@ -81,6 +81,36 @@ copiar os arquivos e recarregar.
   atividade no período. Técnico sem atividade aparece com o cartão zerado, em vez de
   "nenhum técnico".
 
+### Adicionado — relatório "Entidade vs. Analistas" (2026-08-26)
+- **Novo relatório id 60** no seletor de *Relatórios › Analistas* (`front/analysts.php` +
+  `PluginServicereportsAnalysts::getEntityAnalystMatrix()`), a partir da planilha
+  "Tecnicos e horas" da Instant: matriz **analista (linhas) × entidade (colunas)** com o
+  tempo de tarefas, coluna **Total** por analista e linha **Total** por entidade.
+- **A somatória segue a regra do Extrato financeiro**, não a dos relatórios 57/59: o
+  período recorta o chamado pela **data de fechamento** (`glpi_tickets.closedate`) e, uma
+  vez dentro, entram **todas** as tarefas dele — inclusive as de meses anteriores. Chamado
+  em aberto (ou apenas *Solucionado*, com `closedate` NULL) não entra em período nenhum.
+  Por isso a consulta **não** filtra por `tt.date` (que é o critério dos outros relatórios
+  de analistas, onde a pergunta é "quem trabalhou quando").
+- **Sem recorte por serviço gerenciado** (decisão da Instant): entram todos os chamados
+  fechados no período, e não só os ligados a um serviço — o número é o total de horas do
+  analista, não o faturável. Um analista pode, portanto, somar mais horas aqui do que no
+  extrato da mesma entidade.
+- **Colunas = todas as entidades visíveis na sessão** (`getVisibleEntities()`, a partir de
+  `$_SESSION['glpiactiveentities']`), mesmo as zeradas — como na planilha, que tem uma
+  coluna fixa por cliente. Rótulo é o nome **curto** da entidade (completename no `title`).
+  Na entidade raiz vendo tudo saem todas; com a sessão restrita, só a subárvore ativa.
+- Filtro de técnico em **"Todos"** desenha a matriz inteira; com um analista escolhido,
+  desenha só a linha dele — zerada, se ele não teve horas no período. Células em
+  `HH:MM:SS` (`secToHms()`, padrão dos outros relatórios).
+- Tabela larga com **rolagem horizontal**, cabeçalho e coluna do analista **fixos**
+  (`position: sticky`, classes `sr-eva`). **Não pagina** e **exporta CSV**
+  (`entidade_vs_analistas.csv`, mesma tabela com a linha de totais).
+- Validado no GLPI 10.0.26 local nas duas condições de entidade (raiz vendo tudo e sessão
+  restrita a uma filha — sem erro de `getEntitiesRestrictRequest`), com chamado fechado no
+  período mas com tarefa de mês anterior (conta), chamado em aberto (não conta) e 24
+  colunas de entidade (coluna fixa e rolagem OK). Sem mudança de schema.
+
 ### Alterado — Extrato financeiro vira PDF de verdade (2026-08-25)
 - **A rota `&pdf=1` passa a gerar PDF com TCPDF** (`inc/extratopdf.class.php`,
   `PluginServicereportsExtratopdf`), no lugar da impressão do navegador. Motivo: a versão

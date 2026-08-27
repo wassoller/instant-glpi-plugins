@@ -77,7 +77,8 @@ Seletor com 3 relatórios (ids do original: 1, 2, 4; o id 3 não existe nesta in
 computados de verdade; **categoria** e **extras** de chamado = R$ 0,00 (sem modelo de dados —
 batem com os zeros do demo). A **Fatura detalhada (id 4) não foi clonada** — chegou a existir
 como HTML imprimível e foi **removida em 2026-08-25** a pedido da Instant; a rota `&pdf=1`
-(`Html::popHeader` + `window.print()`) hoje só serve ao Extrato.
+hoje só serve ao Extrato e devolve um **PDF de verdade** (TCPDF, `inc/extratopdf.class.php`) —
+a impressão do navegador foi abandonada no mesmo dia porque **cortava dados**.
 
 ---
 
@@ -90,6 +91,13 @@ Título: "Desempenho de Analistas". Sub-abas: **Técnicos**, **Relatórios**, **
   2. **58 — Deslocamentos por Técnico**: Distância (Km) + Tempo total. **Fonte não-nativa do GLPI** (Verdana) — sem dados.
   3. **59 — Horas fora de expediente por chamado**: colunas Técnico, ID do chamado, Tempo total de tarefas no chamado, Tempo de tarefas fora do expediente, Entidade. Expediente observado termina **18:00** (ex.: tarefa 15:39→18:39 = 00:39:31 fora). Usa jornada Seg–Sex 08:00–18:00.
 - **Mapas** ("Posicionamento geográfico de técnicos"): mapa **Leaflet** com posição dos técnicos. **Fonte de geolocalização não-nativa** (Verdana).
+
+> **No clone há um relatório a mais, que não existe no original**: **60 — "Entidade vs.
+> Analistas"** (2026-08-26), pedido pela Instant a partir da planilha "Tecnicos e horas".
+> Matriz **analista × entidade** com o tempo de tarefas. Não veio de recon: a regra de
+> somatória foi definida pelo cliente — período pela **data de fechamento** do chamado
+> (igual ao Extrato financeiro, e **não** por `tt.date` como os relatórios 57/59), sem
+> recorte por serviço gerenciado. Ver [CLAUDE.md](../../CLAUDE.md).
 
 ---
 

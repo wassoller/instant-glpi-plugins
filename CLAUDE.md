@@ -55,6 +55,11 @@ Fluxo por mudança:
    carregado por `getFromDBbyName()`, e redirecione para a tela a testar. Para testar
    com escopo de entidade, chame `Session::changeActiveEntities($id, false)` ou
    `Session::changeActiveEntities('all')` antes do redirect.
+   **Cuidado com o `to=`:** `Html::redirect()` escapa o `&` como `&#38;`, então uma URL de
+   destino com **vários** parâmetros chega truncada (só o primeiro sobrevive) e você acaba
+   olhando a tela errada achando que o filtro não funciona. Faça em duas requisições:
+   primeiro o `devlogin.php` (só para criar a sessão), depois a URL completa do relatório,
+   reaproveitando o cookie (`curl -c/-b`).
 5. **Teste sempre nas duas condições de entidade**: raiz vendo tudo *e* sessão restrita a
    uma entidade filha. Vários bugs (ver `getEntitiesRestrictRequest` abaixo) só aparecem
    na segunda. Dados de exemplo: `.testenv/seed-test-data.sql`.
@@ -127,6 +132,14 @@ Os plugins já rodam em **produção** no GLPI 10 da Instant
   Vale para todas as consultas de tarefa em `Analysts` (já corrigido).
 - No relatório de tarefas, **"Categoria" = categoria do chamado** (`glpi_tickets.itilcategories_id`),
   não `taskcategories_id` (quase sempre vazia). Número do chamado é link.
+- **Relatório 60 — "Entidade vs. Analistas"** (matriz analista × entidade, id 60) é a
+  **exceção da regra do `tt.date`** acima: ele soma pela lógica do **Extrato financeiro** — período pela
+  `closedate` do chamado, levando **todas** as tarefas dele — e não por `tt.date`. Não
+  recorta por serviço gerenciado (entram todos os chamados fechados no período, decisão da
+  Instant em 2026-08-26), então o número **não** é o faturável do extrato. Colunas = todas
+  as entidades visíveis na sessão (`getVisibleEntities()`), inclusive as zeradas; não
+  pagina; exporta CSV. Ao mexer nele, lembre que a tela usa `position: sticky` (classes
+  `sr-eva`) para fixar cabeçalho e coluna do analista.
 - **Dropdown "Técnico"** lista **todos** os técnicos do GLPI via
   `getAllTechnicians()` (`User::getSqlSearchResult(false, 'own_ticket')`), não só os com
   atividade no período; `getTechnicians($start,$end)` continua sendo a base dos cartões
@@ -229,7 +242,8 @@ Traduções `.mo` (hoje os textos saem em pt-BR direto pelos `__()`), refino de 
 Rebuild dos `dist/*.zip` antes do deploy (o `zip -rq dist/<plugin>.zip <plugin>` já é o
 suficiente). A **paridade com o repo GLPI 11** (`instant-glpi11-plugins`) estava em dia
 desde 2026-08-19 (versão 0.2.0 lá também), mas **saiu de sincronia em 2026-08-25**: a
-remoção do relatório 4 ("Fatura de serviços detalhada") ainda **não foi portada** para lá.
+remoção do relatório 4 ("Fatura de serviços detalhada") ainda **não foi portada** para lá,
+nem o **relatório 60 ("Entidade vs. Analistas")** acrescentado em 2026-08-26.
 Ao mexer na lógica aqui, porte lá na sequência. Detalhe do port: no GLPI 11 os assets estáticos do plugin ficam em
 `<plugin>/public/` (a logo do PDF virou `servicereports/public/pics/instant-logo.png`);
 aqui continuam em `pics/`.

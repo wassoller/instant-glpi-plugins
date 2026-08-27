@@ -243,13 +243,22 @@ nunca paginam**; os formulários de filtro não enviam `start`, então filtrar v
 
 Traduções `.mo` (hoje os textos saem em pt-BR direto pelos `__()`), refino de ícones.
 Rebuild dos `dist/*.zip` antes do deploy (o `zip -rq dist/<plugin>.zip <plugin>` já é o
-suficiente). A **paridade com o repo GLPI 11** (`instant-glpi11-plugins`) estava em dia
-desde 2026-08-19 (versão 0.2.0 lá também), mas **saiu de sincronia em 2026-08-25**: a
-remoção do relatório 4 ("Fatura de serviços detalhada") ainda **não foi portada** para lá,
-nem o **relatório 60 ("Entidade vs. Analistas")** acrescentado em 2026-08-26.
-Ao mexer na lógica aqui, porte lá na sequência. Detalhe do port: no GLPI 11 os assets estáticos do plugin ficam em
-`<plugin>/public/` (a logo do PDF virou `servicereports/public/pics/instant-logo.png`);
-aqui continuam em `pics/`.
+suficiente). A **paridade com o repo GLPI 11** (`instant-glpi11-plugins`) está **em dia
+desde 2026-08-26** (versão 0.2.1 lá): as mudanças de 25/08 (regra de período por
+fechamento, layout "Institucional", PDF via TCPDF, remoção do relatório 4) e o relatório
+60 ("Entidade vs. Analistas") já foram portados e validados no GLPI 11.0.8.
+**Ao mexer na lógica aqui, porte lá na sequência** — divergência entre os dois repos é o
+principal risco do projeto.
+
+Detalhes do port (todos mecânicos): no GLPI 11 os assets estáticos do plugin ficam em
+`<plugin>/public/` (a logo do PDF virou `servicereports/public/pics/instant-logo.png`;
+aqui continuam em `pics/`), as classes são namespaced em `src/` e **SQL cru não passa
+mais por `$DB->request()`** — vai por `$DB->doQuery()`/`self::rows()`. Nessa última
+armadilha, procure **todas** as formas de chamada, não só `foreach ($DB->request("`: a
+quebrada em várias linhas e a consumida com `->current()` também estouram (foi o que
+aconteceu no primeiro teste do relatório 60 lá). Uma forma barata de garantir que a
+transformação é fiel: rode-a sobre a versão **do commit de paridade anterior** e confira
+que o resultado bate byte a byte com o arquivo que já está no repo 11.
 
 Sem modelo de dados no `managedservices` (e por isso sempre R$ 0,00): **valor por
 categoria de chamado** e **extras relacionados a chamados**. Se a Instant quiser esses

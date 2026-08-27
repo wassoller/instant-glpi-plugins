@@ -29,7 +29,8 @@ Depois disso, ainda sem mudança de schema (atualizar é copiar os arquivos e re
   "Premium") só aparecem se tiverem horas no período.
 
 Detalhes no [CHANGELOG.md](CHANGELOG.md). A versão para **GLPI 11** está no repositório
-`instant-glpi11-plugins` e **ainda não** tem essas mudanças.
+`instant-glpi11-plugins` e **já tem essas mudanças** (rodada 0.2.1 de 2026-08-26,
+validada no GLPI 11.0.8).
 
 ## Alvo
 - **GLPI 10.0.x** (validado contra 10.0.26), PHP 8.x.
@@ -85,9 +86,10 @@ Guia completo em [docs/INSTALL.md](docs/INSTALL.md) (e `docs/INSTALL.pdf`). Resu
 - [x] **Fase 4** — `servicereports`: landing + Central de Serviços (KPIs + deep-links). *Validado em GLPI 10.0.26.*
 - [x] **Fase 5** — `servicereports`: Gestão Financeira (lê `managedservices`) + gráficos. *Validado em GLPI 10.0.26.*
 - [x] **Fase 6** — `servicereports`: Analistas (Técnicos, Relatórios, Mapas). *Validado em GLPI 10.0.26. Deslocamentos e Mapas dependem de fontes de dados não-nativas (Verdana) — estrutura + nota.*
-- [~] **Fase 7** — polish: **feito** os pacotes `dist/*.zip`, o guia de instalação e o
-  deploy na VM real (`/var/www/instant/glpi`); **pendente** as traduções `.mo` (os textos
-  já saem em pt-BR via `__()`), refino de ícones e a paridade da versão GLPI 11.
+- [~] **Fase 7** — polish: **feito** os pacotes `dist/*.zip`, o guia de instalação, o
+  deploy na VM real (`/var/www/instant/glpi`) e a **paridade da versão GLPI 11** (em dia
+  desde 2026-08-26); **pendente** as traduções `.mo` (os textos já saem em pt-BR via
+  `__()`) e o refino de ícones.
 
 Também disponível: **port para GLPI 11** no repositório `instant-glpi11-plugins`.
 

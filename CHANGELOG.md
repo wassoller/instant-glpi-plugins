@@ -81,6 +81,20 @@ copiar os arquivos e recarregar.
   atividade no período. Técnico sem atividade aparece com o cartão zerado, em vez de
   "nenhum técnico".
 
+### Portado para o GLPI 11 — paridade restaurada (2026-08-26)
+- Tudo o que este repositório ganhou em **25 e 26/08** foi portado para
+  `instant-glpi11-plugins` (rodada **0.2.1** lá) e validado no **GLPI 11.0.8**: regra de
+  período por data de fechamento, layout "Institucional", `Extratopdf` (TCPDF), remoção do
+  relatório 4 e o relatório 60 com a supressão dos nós de agrupamento. Os dois repositórios
+  voltam a estar em paridade funcional.
+- O port foi **gerado** a partir dos arquivos daqui com as trocas mecânicas de sempre
+  (namespace + `use`, SQL cru por `self::rows()`, assets em `public/`); a fidelidade foi
+  conferida rodando a mesma transformação sobre a versão do **commit de paridade anterior**
+  e comparando byte a byte com o arquivo que já estava lá.
+- Armadilha nova registrada nos dois `CLAUDE.md`: no GLPI 11 o `$DB->request()` recusa SQL
+  cru **também** na chamada quebrada em várias linhas e na consumida com `->current()` —
+  não basta procurar `foreach ($DB->request("`.
+
 ### Adicionado — relatório "Entidade vs. Analistas" (2026-08-26)
 - **Novo relatório id 60** no seletor de *Relatórios › Analistas* (`front/analysts.php` +
   `PluginServicereportsAnalysts::getEntityAnalystMatrix()`), a partir da planilha

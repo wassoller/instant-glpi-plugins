@@ -14,7 +14,8 @@ para a migração do GLPI da **Instant Tecnologia** para uma VM própria:
   interno `vservices`. Objeto principal + abas Gerência, Ativos cobertos,
   Composição, Financeiro, Configuração NMS.
 - **`servicereports`** — "Relatórios" (menu **Gerência**). 3 blocos do `vreports`:
-  Central de serviços, Gestão financeira (lê o `managedservices`), Analistas.
+  Central de serviços (Dashboard + Relatórios), Gestão financeira (lê o `managedservices`),
+  Analistas.
 
 > **A versão para GLPI 11** está no repositório separado
 > **`instant-glpi11-plugins`** (classes namespaced em `src/`). Mantenha as duas
@@ -173,6 +174,37 @@ Os plugins já rodam em **produção** no GLPI 10 da Instant
   `fputcsv` passe o `$escape` explícito (`''`) — PHP 8.4+ deprecou o default — e rode os
   valores por `html_entity_decode` (o GLPI devolve texto HTML-escapado, ex.: `&#62;`).
 
+## Central de serviços — sub-aba Relatórios
+
+`front/servicecentral.php` tem duas sub-abas: **Dashboard** (os KPIs do mês, que já
+existiam) e **Relatórios**, com o **"Relatório central de serviços"** (7 seções na tela,
+7 páginas no PDF — capa, total de atendimento, atendimento diário, top 7 categorias, SLA
+não conformidade, SLA nível de serviço e top 10 requerentes).
+
+- **Os gráficos são SVG montados no PHP** por `PluginServicereportsChart`
+  (`inc/chart.class.php`): `line()`, `bars()` (agrupadas), `hbars()` e `donut()`. O
+  tooltip é único para todos — qualquer elemento com `data-tip-title`/`data-tip-body`
+  acende a caixinha; **monte o conteúdo com `textContent`**, nunca `innerHTML` (tem nome
+  de usuário ali dentro). O `assets()` só emite CSS/JS uma vez por página.
+- **`PluginServicereportsCentralpdf`** (`inc/centralpdf.class.php`) **redesenha** os
+  mesmos gráficos com primitivas do TCPDF a partir do mesmo array
+  (`Servicecentral::getReport()`) — mexeu num, mexa no outro. Armadilhas próprias:
+  `PieSector()` precisa de **`$cw=true`** (com `false` a rosca sai anti-horária e o rótulo
+  cai na fatia errada); o período sai em **`d/m/Y` fixo**, não `Html::convDate()`, que é
+  preferência de cada usuário; e o `SetXY()` com x negativo do rótulo girado é a mesma
+  armadilha do relatório 61.
+- **Definições** (fechadas com a Instant em 27/08): "aberto" = `glpi_tickets.date`;
+  "encerrado" = tem `solvedate` no período (**inclui os já Fechados** — por isso encerrados
+  pode passar abertos); "fora do SLA de solução" = `solvedate > time_to_resolve`, **sem**
+  somar `sla_waiting_duration` (o GLPI já empurrou o `time_to_resolve` ao sair do
+  Pendente — somar de novo conta o mesmo tempo duas vezes), chamado **sem SLA** conta como
+  dentro do prazo; "fora do SLA de atendimento" = assumido depois do `time_to_own` (ou não
+  assumido com prazo vencido), pelo `takeintoaccountdate` com fallback em
+  `takeintoaccount_delay_stat`.
+- Período longo: `dayLabels()` trava em 800 dias e os gráficos diários passam a mostrar
+  1 rótulo a cada N. Não pagina; exporta CSV (um arquivo, seções separadas por linha em
+  branco) e PDF.
+
 ## Relatórios de Gestão financeira — cuidados
 
 A sub-aba **Relatórios** (`front/financial.php` + `inc/financial.class.php`) tem 2
@@ -268,10 +300,11 @@ nunca paginam**; os formulários de filtro não enviam `start`, então filtrar v
 Traduções `.mo` (hoje os textos saem em pt-BR direto pelos `__()`), refino de ícones.
 Rebuild dos `dist/*.zip` antes do deploy (o `zip -rq dist/<plugin>.zip <plugin>` já é o
 suficiente). A **paridade com o repo GLPI 11** (`instant-glpi11-plugins`) está **em dia
-desde 2026-08-27** (versão 0.3.0 lá): as mudanças de 25/08 (regra de período por
+desde 2026-08-27** (versão 0.4.0 lá): as mudanças de 25/08 (regra de período por
 fechamento, layout "Institucional", PDF via TCPDF, remoção do relatório 4), o relatório
 60 ("Entidade vs. Analistas") e o relatório 61 ("Chamados por Status e Técnico", com o
-gráfico SVG e o PDF paisagem) já foram portados e validados no GLPI 11.0.8.
+gráfico SVG e o PDF paisagem) e o "Relatório central de serviços" (Central de serviços ›
+Relatórios) já foram portados e validados no GLPI 11.0.8.
 **Ao mexer na lógica aqui, porte lá na sequência** — divergência entre os dois repos é o
 principal risco do projeto.
 

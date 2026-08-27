@@ -1,7 +1,10 @@
 <?php
 /**
- * Lógica do bloco "Central de serviços": KPIs de chamados do mês corrente
- * (contagens via SQL) e deep-links para a busca de chamados do GLPI.
+ * Lógica do bloco "Central de serviços":
+ *  - Dashboard: KPIs de chamados do mês corrente (contagens via SQL) e
+ *    deep-links para a busca de chamados do GLPI.
+ *  - Relatórios: o "Relatório central de serviços" (7 seções: atendimento por
+ *    dia, abertos × encerrados, top categorias, SLA e top requerentes).
  *
  * Definições derivadas do plugin original (docs/recon/02-vreports.md).
  */
@@ -47,6 +50,293 @@ class PluginServicereportsServicecentral
             $params[] = "criteria[$i][value]=" . rawurlencode((string) $c['value']);
         }
         return $CFG_GLPI['root_doc'] . '/front/ticket.php?' . implode('&', $params);
+    }
+
+    // =====================================================================
+    //  Relatório central de serviços (sub-aba Relatórios)
+    // =====================================================================
+
+    /**
+     * Momento em que o chamado foi **assumido** (take into account), do ponto
+     * de vista do SLA de atendimento.
+     *
+     * O GLPI 10 grava `takeintoaccountdate`, mas chamados antigos (ou migrados)
+     * só têm o `takeintoaccount_delay_stat` em segundos — daí o COALESCE.
+     */
+    private const TAKEN_EXPR = "COALESCE(glpi_tickets.takeintoaccountdate,
+        IF(glpi_tickets.takeintoaccount_delay_stat > 0,
+           glpi_tickets.date + INTERVAL glpi_tickets.takeintoaccount_delay_stat SECOND, NULL))";
+
+    /**
+     * Chamado que **estourou o SLA de atendimento** (tempo até o analista
+     * assumir): assumido depois do prazo, ou ainda não assumido com o prazo
+     * já vencido.
+     */
+    private const LATE_TTO = "(glpi_tickets.time_to_own IS NOT NULL AND (
+           (" . self::TAKEN_EXPR . " IS NOT NULL AND " . self::TAKEN_EXPR . " > glpi_tickets.time_to_own)
+        OR (" . self::TAKEN_EXPR . " IS NULL AND NOW() > glpi_tickets.time_to_own)))";
+
+    /**
+     * Chamado que **estourou o SLA de solução**: solucionado depois do prazo.
+     *
+     * Comparação direta `solvedate > time_to_resolve`, igual à estatística
+     * "solucionados com atraso" do core (`Stat::inter_solved_late`). Não some
+     * o `sla_waiting_duration`: o GLPI **já empurra** o `time_to_resolve` pelo
+     * tempo em que o chamado ficou Pendente (CommonITILObject, ao sair do
+     * Pendente) — somar de novo contaria o mesmo tempo duas vezes.
+     * Chamado sem SLA (`time_to_resolve` nulo) nunca é atraso.
+     */
+    private const LATE_TTR = "(glpi_tickets.time_to_resolve IS NOT NULL
+        AND glpi_tickets.solvedate IS NOT NULL
+        AND glpi_tickets.solvedate > glpi_tickets.time_to_resolve)";
+
+    /** @return array<int,array<string,mixed>> */
+    private static function rows(string $sql): array
+    {
+        global $DB;
+        $res = $DB->doQuery($sql);
+        $out = [];
+        while ($row = $DB->fetchAssoc($res)) {
+            $out[] = $row;
+        }
+        return $out;
+    }
+
+    /**
+     * Dias do intervalo, em ordem: ['2026-08-01' => '01/08', …].
+     *
+     * @return array<string,string>
+     */
+    public static function dayLabels(string $start, string $end): array
+    {
+        $out = [];
+        $cur = strtotime(substr($start, 0, 10));
+        $lim = strtotime(substr($end, 0, 10));
+        // Trava de segurança: um filtro de anos viraria um SVG quilométrico.
+        $guard = 0;
+        while ($cur <= $lim && $guard++ < 800) {
+            $out[date('Y-m-d', $cur)] = date('d/m', $cur);
+            $cur = strtotime('+1 day', $cur);
+        }
+        return $out;
+    }
+
+    /**
+     * Chamados **abertos** por dia (pela data de abertura).
+     *
+     * @return array<string,int> 'Y-m-d' => nº (todos os dias do intervalo)
+     */
+    public static function getOpenedByDay(string $start, string $end): array
+    {
+        global $DB;
+        $s   = $DB->escape($start);
+        $e   = $DB->escape($end);
+        $ent = getEntitiesRestrictRequest('AND', 'glpi_tickets');
+
+        $out = array_fill_keys(array_keys(self::dayLabels($start, $end)), 0);
+        foreach (self::rows(
+            "SELECT DATE(glpi_tickets.date) d, COUNT(*) n FROM glpi_tickets
+             WHERE glpi_tickets.is_deleted=0 AND glpi_tickets.date BETWEEN '$s' AND '$e' $ent
+             GROUP BY d"
+        ) as $r) {
+            $out[(string) $r['d']] = (int) $r['n'];
+        }
+        return $out;
+    }
+
+    /**
+     * Chamados **encerrados** por dia — pela `solvedate`, que é a data em que
+     * o chamado foi Solucionado. Chamado que já avançou para Fechado continua
+     * contando (no GLPI, Fechado passou por Solucionado e guarda a data), por
+     * isso o total de encerrados pode passar o de abertos no mesmo período.
+     *
+     * @return array<string,int>
+     */
+    public static function getSolvedByDay(string $start, string $end): array
+    {
+        global $DB;
+        $s   = $DB->escape($start);
+        $e   = $DB->escape($end);
+        $ent = getEntitiesRestrictRequest('AND', 'glpi_tickets');
+
+        $out = array_fill_keys(array_keys(self::dayLabels($start, $end)), 0);
+        foreach (self::rows(
+            "SELECT DATE(glpi_tickets.solvedate) d, COUNT(*) n FROM glpi_tickets
+             WHERE glpi_tickets.is_deleted=0 AND glpi_tickets.solvedate BETWEEN '$s' AND '$e' $ent
+             GROUP BY d"
+        ) as $r) {
+            $out[(string) $r['d']] = (int) $r['n'];
+        }
+        return $out;
+    }
+
+    /**
+     * Não conformidade de SLA por dia, dos chamados **abertos** no período:
+     * quantos estouraram o prazo de atendimento (assumir) e quantos o de
+     * solução. Ver LATE_TTO / LATE_TTR.
+     *
+     * @return array<string,array{tto:int,ttr:int}>
+     */
+    public static function getSlaBreachByDay(string $start, string $end): array
+    {
+        global $DB;
+        $s   = $DB->escape($start);
+        $e   = $DB->escape($end);
+        $ent = getEntitiesRestrictRequest('AND', 'glpi_tickets');
+
+        $out = [];
+        foreach (array_keys(self::dayLabels($start, $end)) as $d) {
+            $out[$d] = ['tto' => 0, 'ttr' => 0];
+        }
+        foreach (self::rows(
+            "SELECT DATE(glpi_tickets.date) d,
+                    SUM(CASE WHEN " . self::LATE_TTO . " THEN 1 ELSE 0 END) tto,
+                    SUM(CASE WHEN " . self::LATE_TTR . " THEN 1 ELSE 0 END) ttr
+             FROM glpi_tickets
+             WHERE glpi_tickets.is_deleted=0 AND glpi_tickets.date BETWEEN '$s' AND '$e' $ent
+             GROUP BY d"
+        ) as $r) {
+            $out[(string) $r['d']] = ['tto' => (int) $r['tto'], 'ttr' => (int) $r['ttr']];
+        }
+        return $out;
+    }
+
+    /**
+     * Nível de serviço do período: dos chamados abertos, quantos ficaram
+     * dentro e quantos fora do prazo de **solução**. Sem SLA definido conta
+     * como dentro do prazo (é o que fecha a conta com o total de abertos).
+     *
+     * @return array{total:int,dentro:int,fora:int}
+     */
+    public static function getSlaSummary(string $start, string $end): array
+    {
+        global $DB;
+        $s   = $DB->escape($start);
+        $e   = $DB->escape($end);
+        $ent = getEntitiesRestrictRequest('AND', 'glpi_tickets');
+
+        $r = self::rows(
+            "SELECT COUNT(*) total, SUM(CASE WHEN " . self::LATE_TTR . " THEN 1 ELSE 0 END) fora
+             FROM glpi_tickets
+             WHERE glpi_tickets.is_deleted=0 AND glpi_tickets.date BETWEEN '$s' AND '$e' $ent"
+        )[0] ?? [];
+
+        $total = (int) ($r['total'] ?? 0);
+        $fora  = (int) ($r['fora'] ?? 0);
+        return ['total' => $total, 'dentro' => $total - $fora, 'fora' => $fora];
+    }
+
+    /**
+     * Top categorias dos chamados abertos no período.
+     *
+     * @return array{rows:array<int,array{label:string,value:int,note:string}>,total:int}
+     */
+    public static function getTopCategories(string $start, string $end, int $limit = 7): array
+    {
+        global $DB;
+        $s   = $DB->escape($start);
+        $e   = $DB->escape($end);
+        $ent = getEntitiesRestrictRequest('AND', 'glpi_tickets');
+
+        $all = self::rows(
+            "SELECT glpi_tickets.itilcategories_id cat, COUNT(*) n FROM glpi_tickets
+             WHERE glpi_tickets.is_deleted=0 AND glpi_tickets.date BETWEEN '$s' AND '$e' $ent
+             GROUP BY cat ORDER BY n DESC"
+        );
+
+        $total = 0;
+        foreach ($all as $r) {
+            $total += (int) $r['n'];
+        }
+
+        $rows = [];
+        foreach (array_slice($all, 0, $limit) as $r) {
+            $id     = (int) $r['cat'];
+            $rows[] = [
+                'label' => $id > 0
+                    ? Dropdown::getDropdownName('glpi_itilcategories', $id)
+                    : __('Sem categoria', 'servicereports'),
+                'value' => (int) $r['n'],
+                'note'  => $total > 0 ? number_format((int) $r['n'] / $total * 100, 2, ',', '.') . '%' : '',
+            ];
+        }
+        return ['rows' => $rows, 'total' => $total];
+    }
+
+    /**
+     * Top usuários **requerentes** dos chamados abertos no período.
+     *
+     * @return array{rows:array<int,array{label:string,value:int,note:string}>,total:int}
+     */
+    public static function getTopRequesters(string $start, string $end, int $limit = 10): array
+    {
+        global $DB;
+        $s   = $DB->escape($start);
+        $e   = $DB->escape($end);
+        $ent = getEntitiesRestrictRequest('AND', 'glpi_tickets');
+
+        $all = self::rows(
+            "SELECT tu.users_id uid, COUNT(DISTINCT glpi_tickets.id) n
+             FROM glpi_tickets
+             INNER JOIN glpi_tickets_users tu ON tu.tickets_id=glpi_tickets.id
+                AND tu.type=" . CommonITILActor::REQUESTER . " AND tu.users_id>0
+             WHERE glpi_tickets.is_deleted=0 AND glpi_tickets.date BETWEEN '$s' AND '$e' $ent
+             GROUP BY tu.users_id ORDER BY n DESC LIMIT " . max(1, $limit)
+        );
+
+        $total = 0;
+        foreach (self::rows(
+            "SELECT COUNT(DISTINCT glpi_tickets.id) n FROM glpi_tickets
+             INNER JOIN glpi_tickets_users tu ON tu.tickets_id=glpi_tickets.id
+                AND tu.type=" . CommonITILActor::REQUESTER . " AND tu.users_id>0
+             WHERE glpi_tickets.is_deleted=0 AND glpi_tickets.date BETWEEN '$s' AND '$e' $ent"
+        ) as $r) {
+            $total = (int) $r['n'];
+        }
+
+        $rows = [];
+        foreach ($all as $r) {
+            $rows[] = [
+                'label' => getUserName((int) $r['uid']),
+                'value' => (int) $r['n'],
+                'note'  => '',
+            ];
+        }
+        return ['rows' => $rows, 'total' => $total];
+    }
+
+    /**
+     * Tudo o que o relatório central de serviços precisa, numa passada só —
+     * a tela e o PDF consomem exatamente o mesmo array.
+     */
+    public static function getReport(string $start, string $end): array
+    {
+        $days     = self::dayLabels($start, $end);
+        $opened   = self::getOpenedByDay($start, $end);
+        $solved   = self::getSolvedByDay($start, $end);
+        $breach   = self::getSlaBreachByDay($start, $end);
+
+        $tto = [];
+        $ttr = [];
+        foreach (array_keys($days) as $d) {
+            $tto[$d] = $breach[$d]['tto'] ?? 0;
+            $ttr[$d] = $breach[$d]['ttr'] ?? 0;
+        }
+
+        return [
+            'client'     => (string) ($_SESSION['glpiactive_entity_shortname'] ?? ''),
+            'start'      => $start,
+            'end'        => $end,
+            'days'       => $days,
+            'opened'     => $opened,
+            'solved'     => $solved,
+            'late_tto'   => $tto,
+            'late_ttr'   => $ttr,
+            'sla'        => self::getSlaSummary($start, $end),
+            'categories' => self::getTopCategories($start, $end, 7),
+            'requesters' => self::getTopRequesters($start, $end, 10),
+            'total_open' => array_sum($opened),
+        ];
     }
 
     /**

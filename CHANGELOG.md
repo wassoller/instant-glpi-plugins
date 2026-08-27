@@ -4,6 +4,67 @@ Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/).
 Alvo: **GLPI 10.0.x** (validado em 10.0.26). A versão para GLPI 11 tem changelog
 próprio no repositório `instant-glpi11-plugins`.
 
+## [0.4.0] — 2026-08-27 (não lançado)
+
+Nova sub-aba **Relatórios** na **Central de serviços** (Gerência › Relatórios › Central de
+Serviços), com o primeiro relatório de lá: o **"Relatório central de serviços"**, clone do
+PDF de 8 páginas do vReports que a Instant mandou como referência (a 8ª, "Top 10 Serviços",
+foi descartada a pedido). Sem mudança de schema.
+
+### Adicionado
+- **Sub-abas Dashboard | Relatórios** na Central de serviços. O Dashboard é o que já
+  existia (KPIs do mês); a nova aba tem seletor de relatório + filtro de período, no mesmo
+  padrão da Gestão financeira e dos Analistas.
+- **Relatório central de serviços**, em 7 seções — cada uma vira uma página do PDF:
+  1. **Capa/cabeçalho**: cliente (entidade ativa da sessão), total de chamados abertos e
+     período.
+  2. **Total de atendimento**: linha com os chamados abertos por dia.
+  3. **Atendimento diário**: barras de abertos × encerrados por dia.
+  4. **Atendimentos por categoria**: Top 7 categorias, com o percentual sobre o total.
+  5. **Atendimento SLA — (Não conformidade)**: por dia, quantos estouraram o prazo para o
+     analista **assumir** o chamado (SLA de atendimento) e quantos estouraram o prazo de
+     **solução**.
+  6. **Atendimento SLA — (Nível de serviço)**: rosca dentro × fora do prazo de solução.
+  7. **Top usuários requerentes**: os 10 com mais chamados abertos no período.
+- **Exportação em PDF** (`&pdf=1` → `PluginServicereportsCentralpdf`,
+  `inc/centralpdf.class.php`): A4 paisagem, capa + uma seção por página, no layout
+  "Institucional" (faixa com logo, Cliente/Período/Emissão, rodapé "Página X de Y").
+- **Exportação CSV**: um arquivo só, com as seções separadas por linha em branco (o
+  original oferece um CSV por gráfico; sete botões na tela seriam pior).
+- **`PluginServicereportsChart`** (`inc/chart.class.php`): gráficos SVG montados no PHP —
+  linha, barras agrupadas, barras horizontais e rosca —, com tooltip único no hover
+  (`data-tip-title`/`data-tip-body`, conteúdo montado com `textContent`). Mesma decisão do
+  relatório 61: sem biblioteca JS, porque a mesma série precisa ser redesenhada no TCPDF
+  para o PDF.
+
+### Regras (confirmadas com a Instant em 2026-08-27)
+- **Aberto** = `glpi_tickets.date` (data de abertura); é por ela que recortam as seções
+  2, 4, 5, 6 e 7.
+- **Encerrado** = tem `solvedate` no período — inclui chamado que já avançou para
+  **Fechado** (no GLPI, Fechado passou por Solucionado e guarda a data). Por isso o total
+  de encerrados pode passar o de abertos no mesmo período, como no relatório original.
+- **Fora do SLA de solução**: `solvedate > time_to_resolve`, a mesma comparação da
+  estatística "solucionados com atraso" do core (`Stat::inter_solved_late`). **Não** se
+  soma o `sla_waiting_duration`: o GLPI já empurra o `time_to_resolve` pelo tempo em que o
+  chamado ficou Pendente, e somar de novo contaria o mesmo tempo duas vezes.
+  Chamado **sem SLA** conta como dentro do prazo — é o que fecha a rosca com o total de
+  abertos (no PDF de referência, 810 + 63 = 873).
+- **Fora do SLA de atendimento**: assumido depois do `time_to_own`, ou ainda não assumido
+  com o prazo vencido. "Assumido" é o take into account do GLPI
+  (`takeintoaccountdate`, com fallback em `takeintoaccount_delay_stat` para chamado
+  antigo).
+
+### Armadilhas pagas
+- **`PieSector()` do TCPDF com `$cw=false`** desenha a rosca no sentido anti-horário e os
+  rótulos das fatias, calculados no sentido horário, caem na fatia errada. Vai `true`.
+- **Período em `d/m/Y` fixo** no PDF, não `Html::convDate()`: o formato de data é
+  preferência de cada usuário, e o cabeçalho mudaria conforme quem imprime.
+- Filtro de anos vira um SVG quilométrico: `dayLabels()` tem trava de 800 dias, e os
+  gráficos diários passam a mostrar 1 rótulo a cada N e a esconder os números.
+
+### Paridade
+- Portado no mesmo dia para o repo **GLPI 11** (`instant-glpi11-plugins`, 0.4.0).
+
 ## [0.3.0] — 2026-08-27 (não lançado)
 
 Novo relatório no bloco **Analistas › Relatórios**: **61 — "Chamados por Status e

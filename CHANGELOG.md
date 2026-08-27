@@ -4,6 +4,56 @@ Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/).
 Alvo: **GLPI 10.0.x** (validado em 10.0.26). A versão para GLPI 11 tem changelog
 próprio no repositório `instant-glpi11-plugins`.
 
+## [0.5.1] — 2026-08-27 (não lançado)
+
+Ajustes do "Relatório de atualização - Cliente" depois da revisão da Instant, e a
+divisão dele em **duas variantes**. Sem mudança de schema.
+
+### Adicionado
+- **Tabela "TOTAL DE CHAMADOS \<PERÍODO\>"** na 2ª seção, ao lado da legenda dos status —
+  ela estava no slide 2 do deck (num PNG que passou batido na primeira leitura) e tinha
+  ficado de fora. Conta os chamados **abertos no período** pelo **status atual** de cada
+  um; o total é o mesmo "chamados abertos" da capa.
+- **Duas variantes do relatório**, mesma implementação com granularidades diferentes:
+  - **2 — "Relatório de atualização - Cliente - ANUAL"**: as séries temporais são
+    **mensais**. Abre com os últimos 12 meses.
+  - **3 — "Relatório de atualização - Cliente - MENSAL"**: as mesmas métricas diluídas em
+    **dias**. Abre no mês corrente.
+  Muda o eixo das seções 3 ("Chamados por mês"/"por dia") e 6 ("Abertos × Fechados por
+  mês"/"por dia") e a tabela da seção 4 (MÊS × INC × REQ / DIA × INC × REQ). As demais
+  seções — status, top 5 categorias e horário — são iguais nas duas.
+- **Capa redesenhada** (tela e PDF): faixa escura de sangria com o título e o cliente e,
+  sobre o branco, o período e quatro números do período (abertos, fechados, incidentes,
+  requisições) separados por filetes. A logo fica na parte branca — é escura e sumiria
+  sobre a faixa.
+
+### Removido
+- **A linha de backlog** do gráfico de abertos × fechados, a pedido da Instant: confundia
+  a leitura. Saíram junto o `comboLine()`/`niceRange()` do `chart.class.php`, o
+  `drawCombo()` do PDF e a coluna de backlog do CSV — nada mais os usava.
+
+### Alterado
+- `PluginServicereportsUpdatereport` passou a trabalhar por **bucket** (mês ou dia):
+  `bucketExpr()` devolve a expressão SQL do agrupamento e todas as consultas de série
+  usam a mesma. Foi o que permitiu servir as duas variantes sem duplicar consulta.
+- Os nomes dos status ficam num lugar só (`statusNames()`), com a grafia do deck
+  ("Atribuído", e não o "Em atendimento (atribuído)" do core) — a legenda e a tabela ficam
+  lado a lado e precisam usar as mesmas palavras.
+
+### Armadilhas pagas
+- **A soma da tabela de status tem de fechar com o total.** Os quatro status do deck saem
+  sempre, mesmo zerados (é o que a legenda ao lado explica), e "Novo"/"Em atendimento
+  (planejado)" entram **só quando têm chamado** — sem isso o cliente somaria as linhas e
+  acharia um total diferente do da capa.
+- **Cabeçalho do total**: "DEZEMBRO/25" só quando o período cabe num mês; atravessando
+  meses vira "NO PERÍODO", senão o nome de um mês seria mentira.
+- **Tabela do bucket com altura de linha adaptativa**: no MENSAL são até 31 linhas, e com
+  altura fixa a tabela invadiria o rodapé.
+
+### Paridade
+- **Pendente** de port para o repo **GLPI 11** (`instant-glpi11-plugins`), junto com o
+  0.5.0.
+
 ## [0.5.0] — 2026-08-27 (não lançado)
 
 Segundo relatório na sub-aba **Central de serviços › Relatórios**: o **"Relatório de

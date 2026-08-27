@@ -4,10 +4,14 @@
  *
  * Sub-abas:
  *   - Dashboard   → KPIs do mês corrente (cartões com deep-link para a busca).
- *   - Relatórios  → seletor de relatório + filtro de período. Dois relatórios,
- *                   ambos com 7 seções, CSV e PDF:
+ *   - Relatórios  → seletor de relatório + filtro de período. Três relatórios,
+ *                   todos com 7 seções, CSV e PDF:
  *                     1 "Relatório central de serviços"
- *                     2 "Relatório de atualização - Cliente"
+ *                     2 "Relatório de atualização - Cliente - ANUAL"  (por mês)
+ *                     3 "Relatório de atualização - Cliente - MENSAL" (por dia)
+ *
+ * Os relatórios 2 e 3 são a **mesma** implementação com granularidades
+ * diferentes (PluginServicereportsUpdatereport::GRAIN_MONTH / GRAIN_DAY).
  */
 
 include('../../../inc/includes.php');
@@ -19,7 +23,16 @@ Session::checkRight('plugin_servicereports', READ);
 $base   = $CFG_GLPI['root_doc'] . '/plugins/servicereports/front/servicecentral.php';
 $tab    = ($_GET['tab'] ?? 'dashboard') === 'relatorios' ? 'relatorios' : 'dashboard';
 $report = (int) ($_GET['report'] ?? 0);
-$start  = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['start_date'] ?? '') ? $_GET['start_date'] : date('Y-m-01');
+
+// Granularidade dos relatórios de atualização (2 = ANUAL/mês, 3 = MENSAL/dia).
+$grain = $report === 3
+    ? PluginServicereportsUpdatereport::GRAIN_DAY
+    : PluginServicereportsUpdatereport::GRAIN_MONTH;
+
+// O ANUAL já abre com os últimos 12 meses; os outros, no mês corrente. Trocar
+// de relatório no seletor não envia datas, então cai sempre no padrão certo.
+$defaultStart = $report === 2 ? date('Y-m-01', strtotime('-11 months')) : date('Y-m-01');
+$start  = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['start_date'] ?? '') ? $_GET['start_date'] : $defaultStart;
 $end    = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['end_date'] ?? '') ? $_GET['end_date'] : date('Y-m-d');
 $startDt = $start . ' 00:00:00';
 $endDt   = $end . ' 23:59:59';
@@ -80,11 +93,12 @@ if ($tab === 'relatorios' && $report === 1 && ($_GET['export'] ?? '') === 'csv')
     exit;
 }
 
-if ($tab === 'relatorios' && $report === 2 && ($_GET['export'] ?? '') === 'csv') {
-    $d = PluginServicereportsUpdatereport::getReport($startDt, $endDt);
+if ($tab === 'relatorios' && in_array($report, [2, 3], true) && ($_GET['export'] ?? '') === 'csv') {
+    $d = PluginServicereportsUpdatereport::getReport($startDt, $endDt, $grain);
 
     header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="relatorio_de_atualizacao_' . $start . '_' . $end . '.csv"');
+    header('Content-Disposition: attachment; filename="relatorio_de_atualizacao_'
+        . PluginServicereportsUpdatereport::slug($grain) . '_' . $start . '_' . $end . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // BOM p/ acentos no Excel
     $dec = static fn ($v) => html_entity_decode((string) $v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -92,18 +106,25 @@ if ($tab === 'relatorios' && $report === 2 && ($_GET['export'] ?? '') === 'csv')
         fputcsv($out, array_map($dec, $line), ';', '"', '');
     };
 
-    $put([__('Relatório de atualização - Cliente', 'servicereports')]);
+    $put([$d['title']]);
     $put(['Cliente', $d['client']]);
     $put(['Período', $periodLabel]);
     $put(['Chamados abertos', $d['total_open']]);
     $put(['Chamados fechados', $d['total_closed']]);
     $put([]);
 
-    $put(['Chamados por mês']);
-    $put(['Mês', 'Incidente', 'Requisição', 'Total']);
-    foreach ($d['months'] as $key => $label) {
-        $inc = (int) ($d['by_month'][$key]['inc'] ?? 0);
-        $req = (int) ($d['by_month'][$key]['req'] ?? 0);
+    $put(['Relatório de atendimentos']);
+    $put([sprintf(__('Total de chamados %s', 'servicereports'), $d['status_period']), $d['total_open']]);
+    foreach ($d['by_status'] as $r) {
+        $put([$r['label'], $r['value']]);
+    }
+    $put([]);
+
+    $put([$d['series_titles']['types']]);
+    $put([$d['bucket_label'], 'Incidente', 'Requisição', 'Total']);
+    foreach ($d['buckets'] as $key => $label) {
+        $inc = (int) ($d['by_type'][$key]['inc'] ?? 0);
+        $req = (int) ($d['by_type'][$key]['req'] ?? 0);
         $put([$label, $inc, $req, $inc + $req]);
     }
     $put(['Total', $d['types']['inc'], $d['types']['req'], $d['types']['inc'] + $d['types']['req']]);
@@ -117,13 +138,12 @@ if ($tab === 'relatorios' && $report === 2 && ($_GET['export'] ?? '') === 'csv')
     $put(['TOTAL GERAL', $d['categories']['total'], '']);
     $put([]);
 
-    $put(['Chamados por dia']);
-    $put(['Backlog inicial', $d['backlog_initial']]);
-    $put(['Dia', 'Aberto', 'Fechado', 'Backlog']);
-    foreach ($d['days'] as $iso => $label) {
-        $put([$label, $d['opened'][$iso] ?? 0, $d['closed'][$iso] ?? 0, $d['backlog'][$iso] ?? 0]);
+    $put([$d['series_titles']['flow']]);
+    $put([$d['bucket_label'], 'Aberto', 'Fechado']);
+    foreach ($d['buckets'] as $key => $label) {
+        $put([$label, $d['opened'][$key] ?? 0, $d['closed'][$key] ?? 0]);
     }
-    $put(['Total', $d['total_open'], $d['total_closed'], '']);
+    $put(['Total', $d['total_open'], $d['total_closed']]);
     $put([]);
 
     $put(['Chamados por horário']);
@@ -157,14 +177,15 @@ if ($tab === 'relatorios' && $report === 1 && ($_GET['pdf'] ?? '') === '1') {
     exit;
 }
 
-if ($tab === 'relatorios' && $report === 2 && ($_GET['pdf'] ?? '') === '1') {
-    $d = PluginServicereportsUpdatereport::getReport($startDt, $endDt);
+if ($tab === 'relatorios' && in_array($report, [2, 3], true) && ($_GET['pdf'] ?? '') === '1') {
+    $d = PluginServicereportsUpdatereport::getReport($startDt, $endDt, $grain);
 
     ob_start();
     $bytes = PluginServicereportsUpdatepdf::build($d);
     ob_end_clean();
 
-    $file = 'relatorio_de_atualizacao_' . $start . '_' . $end . '.pdf';
+    $file = 'relatorio_de_atualizacao_' . PluginServicereportsUpdatereport::slug($grain)
+        . '_' . $start . '_' . $end . '.pdf';
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="' . $file . '"');
     header('Content-Length: ' . strlen($bytes));
@@ -223,7 +244,8 @@ if ($tab === 'dashboard') {
     $reports = [
         0 => __('---', 'servicereports'),
         1 => __('Relatório central de serviços', 'servicereports'),
-        2 => __('Relatório de atualização - Cliente', 'servicereports'),
+        2 => PluginServicereportsUpdatereport::title(PluginServicereportsUpdatereport::GRAIN_MONTH),
+        3 => PluginServicereportsUpdatereport::title(PluginServicereportsUpdatereport::GRAIN_DAY),
     ];
     echo "<form method='get' action='" . Html::cleanInputText($base) . "' class='mb-3' id='reportform'>";
     echo Html::hidden('tab', ['value' => 'relatorios']);
@@ -248,7 +270,7 @@ if ($tab === 'dashboard') {
     echo "<div class='col-auto'>" . Html::submit(__('Filtrar', 'servicereports'), ['class' => 'btn btn-primary']) . "</div>";
     echo "</div></form>";
 
-    if ($report !== 1 && $report !== 2) {
+    if (!in_array($report, [1, 2, 3], true)) {
         echo "<div class='alert alert-info'>" . __('Selecione um relatório.', 'servicereports') . "</div>";
     } else {
         $args   = ['tab' => 'relatorios', 'report' => $report, 'start_date' => $start, 'end_date' => $end];
@@ -353,28 +375,72 @@ if ($tab === 'dashboard') {
             PluginServicereportsChart::hbars($d['requesters']['rows'], __('Chamados abertos', 'servicereports'));
             $endSection();
         } else {
-            $d = PluginServicereportsUpdatereport::getReport($startDt, $endDt);
+            $d = PluginServicereportsUpdatereport::getReport($startDt, $endDt, $grain);
 
-            // 1) Capa / dados do relatório
-            echo "<div class='card mb-3'><div class='card-body'>";
-            echo "<h2 class='h4 mb-3'>" . __('Relatório de atualização - Cliente', 'servicereports') . "</h2>";
-            echo "<div class='row g-3'>";
+            // Estilo próprio da capa e da tabela de status. Cores explícitas
+            // (e não variáveis do tema): a faixa é escura nos dois temas do
+            // GLPI, então o texto tem de ser claro em qualquer um.
+            echo "<style>
+                .sr-uc { border-radius: .5rem; overflow: hidden; }
+                .sr-uc-band { background: #223140; color: #fff; padding: 1.75rem 2rem 1.5rem; }
+                .sr-uc-kicker { color: #4bb3d4; font-size: .72rem; font-weight: 600;
+                                letter-spacing: .14em; text-transform: uppercase; }
+                .sr-uc-title { font-size: 1.7rem; font-weight: 700; line-height: 1.2; margin: .35rem 0 .75rem; }
+                .sr-uc-rule { width: 46px; height: 3px; background: #4bb3d4; border-radius: 2px; }
+                .sr-uc-client { font-size: 1.05rem; color: #e2e9f0; margin-top: .75rem; }
+                .sr-uc-body { background: #fff; color: #16202a; padding: 1.25rem 2rem 1.5rem; }
+                .sr-uc-lbl { font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; color: #8b98a5; }
+                .sr-uc-period { font-size: 1.05rem; font-weight: 600; }
+                .sr-uc-stats { display: flex; flex-wrap: wrap; border-top: 1px solid #d8dee4;
+                               margin-top: 1rem; padding-top: 1rem; }
+                .sr-uc-stat { flex: 1 1 140px; padding: 0 1.25rem; }
+                .sr-uc-stat + .sr-uc-stat { border-left: 1px solid #d8dee4; }
+                .sr-uc-stat:first-child { padding-left: 0; }
+                .sr-uc-num { font-size: 1.9rem; font-weight: 700; line-height: 1.1; color: #223140; }
+                .sr-us { max-width: 520px; border-collapse: collapse; width: 100%; }
+                .sr-us th, .sr-us td { padding: .4rem .75rem; }
+                .sr-us thead th { background: #223140; color: #fff; font-weight: 700; }
+                .sr-us tbody tr:nth-child(odd) { background: #e9eef4; }
+                .sr-us tbody td { color: #16202a; }
+                .sr-us .sr-us-n { text-align: right; white-space: nowrap; }
+            </style>";
+
+            // 1) Capa
+            echo "<div class='card mb-3 sr-uc'>";
+            echo "<div class='sr-uc-band'>";
+            echo "<div class='sr-uc-kicker'>" . __('Relatório', 'servicereports') . "</div>";
+            echo "<div class='sr-uc-title'>" . $d['title'] . "</div>";
+            echo "<div class='sr-uc-rule'></div>";
+            echo "<div class='sr-uc-client'>" . ($d['client'] !== '' ? $d['client'] : '-') . "</div>";
+            echo "</div>";
+            echo "<div class='sr-uc-body'>";
+            echo "<div class='sr-uc-lbl'>" . __('Período', 'servicereports') . "</div>";
+            echo "<div class='sr-uc-period'>" . $periodLabel . "</div>";
+            echo "<div class='sr-uc-stats'>";
             foreach ([
-                [__('Cliente', 'servicereports'), $d['client'] !== '' ? $d['client'] : '-'],
-                [__('Chamados abertos', 'servicereports'), (string) $d['total_open']],
-                [__('Chamados fechados', 'servicereports'), (string) $d['total_closed']],
-                [__('Período', 'servicereports'), $periodLabel],
-            ] as [$k, $v]) {
-                echo "<div class='col-12 col-md-3'><div class='text-muted text-uppercase' style='font-size:.72rem'>$k</div>"
-                    . "<div class='h4 mb-0'>$v</div></div>";
+                [(int) $d['total_open'], __('Chamados abertos', 'servicereports')],
+                [(int) $d['total_closed'], __('Chamados fechados', 'servicereports')],
+                [(int) $d['types']['inc'], __('Incidentes', 'servicereports')],
+                [(int) $d['types']['req'], __('Requisições', 'servicereports')],
+            ] as [$num, $lbl]) {
+                echo "<div class='sr-uc-stat'><div class='sr-uc-num'>$num</div>"
+                    . "<div class='sr-uc-lbl'>$lbl</div></div>";
             }
             echo "</div></div></div>";
 
-            // 2) Relatório de atendimentos — legenda dos status
+            // 2) Relatório de atendimentos — total por status + legenda
             $section(
                 __('Relatório de atendimentos', 'servicereports'),
-                __('O que cada status de chamado significa no acompanhamento do atendimento.', 'servicereports')
+                __('Os chamados abertos no período pelo status em que estão agora, e o que cada status '
+                 . 'significa no acompanhamento do atendimento.', 'servicereports')
             );
+            echo "<table class='sr-us mb-4'><thead><tr>"
+                . "<th>" . mb_strtoupper(sprintf(__('Total de chamados %s', 'servicereports'), $d['status_period']), 'UTF-8') . "</th>"
+                . "<th class='sr-us-n'>" . (int) $d['total_open'] . "</th></tr></thead><tbody>";
+            foreach ($d['by_status'] as $r) {
+                echo "<tr><td>" . $r['label'] . "</td><td class='sr-us-n'>" . (int) $r['value'] . "</td></tr>";
+            }
+            echo "</tbody></table>";
             echo "<dl class='row mb-0'>";
             foreach ($d['statuses'] as [$name, $desc]) {
                 echo "<dt class='col-12 col-sm-3 col-lg-2'>" . $name . "</dt>";
@@ -383,25 +449,25 @@ if ($tab === 'dashboard') {
             echo "</dl>";
             $endSection();
 
-            // 3) Chamados por mês
-            $monthLabels = array_values($d['months']);
-            $incData     = [];
-            $reqData     = [];
-            foreach (array_keys($d['months']) as $m) {
-                $incData[] = (int) ($d['by_month'][$m]['inc'] ?? 0);
-                $reqData[] = (int) ($d['by_month'][$m]['req'] ?? 0);
+            // 3) Chamados por mês/dia, por tipo
+            $bucketLabels = array_values($d['buckets']);
+            $incData      = [];
+            $reqData      = [];
+            foreach (array_keys($d['buckets']) as $k) {
+                $incData[] = (int) ($d['by_type'][$k]['inc'] ?? 0);
+                $reqData[] = (int) ($d['by_type'][$k]['req'] ?? 0);
             }
             $section(
-                __('Chamados por mês', 'servicereports'),
-                __('Chamados abertos em cada mês do período, separados por tipo.', 'servicereports')
+                $d['series_titles']['types'],
+                __('Chamados abertos no período, separados por tipo.', 'servicereports')
             );
-            PluginServicereportsChart::bars($monthLabels, [
+            PluginServicereportsChart::bars($bucketLabels, [
                 ['name' => __('Incidente', 'servicereports'), 'color' => PluginServicereportsChart::NAVY, 'data' => $incData],
                 ['name' => __('Requisição', 'servicereports'), 'color' => PluginServicereportsChart::STEEL, 'data' => $reqData],
             ]);
             $endSection();
 
-            // 4) Chamados por tipo — tabela de meses + rosca
+            // 4) Chamados por tipo — tabela do bucket + rosca
             $section(
                 __('Chamados por tipo', 'servicereports'),
                 __('Incidente e Requisição são os dois tipos de chamado do GLPI; o total é o de chamados '
@@ -409,19 +475,20 @@ if ($tab === 'dashboard') {
             );
             echo "<div class='row g-3 align-items-center'>";
             echo "<div class='col-12 col-lg-5'>";
+            echo "<div style='max-height:420px;overflow-y:auto'>";
             echo "<table class='table table-sm table-striped mb-0' style='max-width:420px'>";
-            echo "<thead><tr><th>" . __('Mês', 'servicereports') . "</th>"
+            echo "<thead><tr><th>" . $d['bucket_label'] . "</th>"
                 . "<th class='text-center'>" . __('INC', 'servicereports') . "</th>"
                 . "<th class='text-center'>" . __('REQ', 'servicereports') . "</th></tr></thead><tbody>";
-            foreach ($d['months'] as $key => $label) {
+            foreach ($d['buckets'] as $key => $label) {
                 echo "<tr><td>" . $label . "</td>"
-                    . "<td class='text-center'>" . (int) ($d['by_month'][$key]['inc'] ?? 0) . "</td>"
-                    . "<td class='text-center'>" . (int) ($d['by_month'][$key]['req'] ?? 0) . "</td></tr>";
+                    . "<td class='text-center'>" . (int) ($d['by_type'][$key]['inc'] ?? 0) . "</td>"
+                    . "<td class='text-center'>" . (int) ($d['by_type'][$key]['req'] ?? 0) . "</td></tr>";
             }
             echo "</tbody><tfoot><tr><th>" . __('Total', 'servicereports') . "</th>"
                 . "<th class='text-center'>" . (int) $d['types']['inc'] . "</th>"
                 . "<th class='text-center'>" . (int) $d['types']['req'] . "</th></tr></tfoot></table>";
-            echo "</div>";
+            echo "</div></div>";
             echo "<div class='col-12 col-lg-7'>";
             PluginServicereportsChart::donut([
                 ['label' => __('Incidente', 'servicereports'), 'value' => (int) $d['types']['inc'], 'color' => PluginServicereportsChart::NAVY],
@@ -441,25 +508,16 @@ if ($tab === 'dashboard') {
             PluginServicereportsChart::hbars($d['categories']['rows'], __('Chamados abertos', 'servicereports'));
             $endSection();
 
-            // 6) Chamados por dia — abertos × fechados + backlog
+            // 6) Abertos × Fechados por mês/dia
             $section(
-                __('Chamados por dia', 'servicereports'),
-                sprintf(
-                    __('Abertos pela data de abertura e fechados pela data de fechamento (status Fechado; '
-                     . 'chamado só Solucionado ainda não conta). O backlog é a fila acumulada: parte dos %d '
-                     . 'chamados que já estavam em aberto na véspera do período e, a cada dia, soma os abertos '
-                     . 'e subtrai os fechados.', 'servicereports'),
-                    (int) $d['backlog_initial']
-                )
+                $d['series_titles']['flow'],
+                __('Abertos pela data de abertura e fechados pela data de fechamento (status Fechado; '
+                 . 'chamado só Solucionado ainda não conta).', 'servicereports')
             );
-            PluginServicereportsChart::comboLine(
-                array_values($d['days']),
-                [
-                    ['name' => __('Aberto', 'servicereports'), 'color' => PluginServicereportsChart::NAVY, 'data' => array_values($d['opened'])],
-                    ['name' => __('Fechado', 'servicereports'), 'color' => PluginServicereportsChart::STEEL, 'data' => array_values($d['closed'])],
-                ],
-                ['name' => __('Backlog', 'servicereports'), 'color' => PluginServicereportsChart::RED, 'data' => array_values($d['backlog'])]
-            );
+            PluginServicereportsChart::bars($bucketLabels, [
+                ['name' => __('Aberto', 'servicereports'), 'color' => PluginServicereportsChart::NAVY, 'data' => array_values($d['opened'])],
+                ['name' => __('Fechado', 'servicereports'), 'color' => PluginServicereportsChart::STEEL, 'data' => array_values($d['closed'])],
+            ]);
             $endSection();
 
             // 7) Chamados por horário

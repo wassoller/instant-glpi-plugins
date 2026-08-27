@@ -1,19 +1,21 @@
 <?php
 /**
- * "Relatório de atualização - Cliente" em PDF (TCPDF), A4 paisagem — capa +
- * uma seção por página, na ordem da tela.
+ * "Relatório de atualização - Cliente" (ANUAL e MENSAL) em PDF (TCPDF),
+ * A4 paisagem — capa + uma seção por página, na ordem da tela.
  *
  * Herda de PluginServicereportsCentralpdf: cabeçalho, rodapé, moldura de
  * seção, grade, barras, barras horizontais e rosca são os mesmos do relatório
- * central — só o título muda. O que é próprio daqui:
- *   - `drawCombo()`, barras + linha de backlog num eixo que desce abaixo de
- *     zero (o `drawBars()` herdado só sobe);
- *   - `drawMonthTable()`, a tabela MÊS × INC × REQ do deck.
+ * central. O que é próprio daqui: a capa, o glossário de status com a tabela de
+ * totais, `drawBucketTable()` (a tabela MÊS/DIA × INC × REQ) e
+ * `drawTypeDonut()` (a rosca ao lado dela).
  *
- * Como no relatório central, os gráficos são **redesenhados** com primitivas
- * do TCPDF a partir do mesmo array de
- * `PluginServicereportsUpdatereport::getReport()` que alimenta o SVG da tela —
- * mexeu num, mexa no outro.
+ * A **mesma** classe monta as duas variantes: o que muda é a granularidade dos
+ * buckets, que já vem resolvida no array de
+ * `PluginServicereportsUpdatereport::getReport()`.
+ *
+ * Como no relatório central, os gráficos são **redesenhados** com primitivas do
+ * TCPDF a partir do mesmo array que alimenta o SVG da tela — mexeu num, mexa no
+ * outro.
  */
 
 if (!defined('GLPI_ROOT')) {
@@ -22,63 +24,135 @@ if (!defined('GLPI_ROOT')) {
 
 class PluginServicereportsUpdatepdf extends PluginServicereportsCentralpdf
 {
-    public static function title(): string
-    {
-        return __('Relatório de atualização - Cliente', 'servicereports');
-    }
-
     // =====================================================================
     //  Capa
     // =====================================================================
 
+    /**
+     * Faixa escura de sangria com o título e o cliente; sobre o branco, o
+     * período, quatro números do período e a logo.
+     *
+     * A logo é escura e sumiria sobre a faixa — por isso fica na parte branca.
+     */
     private function drawUpdateCover(array $d): void
     {
         $this->isCover = true;
         $this->AddPage();
 
-        $logo = self::logoFile();
-        if ($logo !== '') {
-            $this->Image($logo, 232, 18, 0, 22, '', '', '', true, 300);
-        }
+        // Sangria: Rect() vai de x=0 à largura da folha, ignorando as margens.
+        // É a única coisa da capa que encosta na borda.
+        $this->SetFillColor(...self::C_HEAD);
+        $this->Rect(0, 0, 297, 84, 'F');
 
-        $this->SetXY(20, 62);
-        $this->SetTextColor(...self::C_INK);
-        $this->SetFont('helvetica', 'B', 30);
-        $this->Cell(200, 14, self::title(), 0, 2, 'L');
-
-        $this->SetX(20);
-        $this->SetFont('helvetica', 'B', 14);
+        $this->SetXY(24, 24);
+        $this->SetFont('helvetica', 'B', 9);
         $this->SetTextColor(...self::C_ACCENT);
-        $this->Cell(200, 10, __('Dados do relatório', 'servicereports'), 0, 2, 'L');
+        $this->Cell(200, 5, self::upper(__('Relatório', 'servicereports')), 0, 2, 'L');
+
+        $this->SetX(24);
+        $this->SetFont('helvetica', 'B', 26);
+        $this->SetTextColor(255, 255, 255);
+        $this->Cell(250, 14, $this->reportTitle, 0, 2, 'L');
+
+        $this->SetFillColor(...self::C_ACCENT);
+        $this->Rect(24, 60, 46, 1.1, 'F');
+
+        $this->SetXY(24, 65);
+        $this->SetFont('helvetica', '', 13);
+        $this->SetTextColor(226, 233, 240);
+        $this->Cell(250, 8, $this->client !== '' ? $this->client : '-', 0, 0, 'L');
+
+        // --- área branca ---
+        $this->SetXY(24, 96);
+        $this->SetFont('helvetica', '', 7);
+        $this->SetTextColor(...self::C_FAINT);
+        $this->Cell(120, 4, self::upper(__('Período', 'servicereports')), 0, 2, 'L');
+        $this->SetX(24);
+        $this->SetFont('helvetica', 'B', 13);
+        $this->SetTextColor(...self::C_INK);
+        $this->Cell(120, 7, $this->period, 0, 0, 'L');
 
         $this->SetDrawColor(...self::C_LINE);
-        $this->Line(20, $this->GetY() + 2, 150, $this->GetY() + 2);
+        $this->Line(24, 118, 273, 118);
 
-        $rows = [
-            [__('Cliente', 'servicereports'), $d['client'] !== '' ? $d['client'] : '-'],
-            [__('Chamados abertos', 'servicereports'), (string) (int) $d['total_open']],
-            [__('Chamados fechados', 'servicereports'), (string) (int) $d['total_closed']],
-            [__('Período', 'servicereports'), $this->period],
+        $stats = [
+            [(int) $d['total_open'], __('Chamados abertos', 'servicereports')],
+            [(int) $d['total_closed'], __('Chamados fechados', 'servicereports')],
+            [(int) $d['types']['inc'], __('Incidentes', 'servicereports')],
+            [(int) $d['types']['req'], __('Requisições', 'servicereports')],
         ];
-        $y = $this->GetY() + 8;
-        foreach ($rows as [$label, $value]) {
-            $this->SetXY(20, $y);
-            $this->SetFont('helvetica', 'B', 11);
-            $this->SetTextColor(...self::C_SOFT);
-            $w = $this->GetStringWidth($label . ': ') + 1;
-            $this->Cell($w, 7, $label . ': ', 0, 0, 'L');
-            $this->SetFont('helvetica', '', 11);
-            $this->SetTextColor(...self::C_INK);
-            $this->Cell(160, 7, $value, 0, 0, 'L');
-            $y += 8;
+        $colW = 249 / count($stats);
+        $x    = 24.0;
+        foreach ($stats as $i => [$value, $label]) {
+            if ($i > 0) {
+                // Filete entre as colunas, no lugar de caixas.
+                $this->SetDrawColor(...self::C_LINE);
+                $this->Line($x - 4, 126, $x - 4, 152);
+            }
+            $this->SetXY($x, 126);
+            $this->SetFont('helvetica', 'B', 25);
+            $this->SetTextColor(...self::C_HEAD);
+            $this->Cell($colW - 8, 13, (string) $value, 0, 2, 'L');
+            $this->SetX($x);
+            $this->SetFont('helvetica', '', 7.5);
+            $this->SetTextColor(...self::C_FAINT);
+            $this->Cell($colW - 8, 4, self::upper($label), 0, 0, 'L');
+            $x += $colW;
+        }
+
+        $logo = self::logoFile();
+        if ($logo !== '') {
+            $this->Image($logo, 243, 172, 0, 16, '', '', '', true, 300);
         }
 
         $this->isCover = false;
     }
 
     // =====================================================================
-    //  Legenda dos status (seção sem gráfico)
+    //  Seção 2 — total por status + legenda
     // =====================================================================
+
+    /**
+     * A tabela do deck: faixa escura com "TOTAL DE CHAMADOS <PERÍODO>" e o
+     * total à direita, e uma linha por status. Devolve o y de baixo.
+     *
+     * @param array<int,array{label:string,value:int}> $rows
+     */
+    private function drawStatusTable(array $rows, string $periodLabel, int $total, float $x0, float $y0, float $w): float
+    {
+        $h    = 8.0;
+        $numW = 26.0;
+
+        $this->SetFillColor(...self::C_HEAD);
+        $this->SetTextColor(255, 255, 255);
+        $this->SetFont('helvetica', 'B', 9.5);
+        $this->SetXY($x0, $y0);
+        $this->Cell(
+            $w - $numW,
+            $h,
+            self::upper(sprintf(__('Total de chamados %s', 'servicereports'), $periodLabel)),
+            0,
+            0,
+            'L',
+            true
+        );
+        $this->Cell($numW, $h, (string) $total, 0, 0, 'R', true);
+
+        $y = $y0 + $h;
+        foreach (array_values($rows) as $i => $r) {
+            $zebra = $i % 2 === 0;
+            if ($zebra) {
+                $this->SetFillColor(233, 238, 244);
+            }
+            $this->SetTextColor(...self::C_INK);
+            $this->SetFont('helvetica', '', 9.5);
+            $this->SetXY($x0, $y);
+            $this->Cell($w - $numW, $h, self::plain((string) $r['label']), 0, 0, 'L', $zebra);
+            $this->Cell($numW, $h, (string) (int) $r['value'], 0, 0, 'R', $zebra);
+            $y += $h;
+        }
+        return $y;
+    }
 
     /** @param array<int,array{0:string,1:string}> $statuses */
     private function drawGlossary(array $statuses, float $y0): void
@@ -89,7 +163,7 @@ class PluginServicereportsUpdatepdf extends PluginServicereportsCentralpdf
         $descX = 66.0;
         $descW = self::W - $descX + 4;
 
-        $y = $y0 + 4;
+        $y = $y0;
         foreach ($statuses as [$name, $desc]) {
             $this->SetFillColor(...self::C_ACCENT);
             $this->Rect(24, $y + 1.5, 2.6, 2.6, 'F');
@@ -110,35 +184,42 @@ class PluginServicereportsUpdatepdf extends PluginServicereportsCentralpdf
     }
 
     // =====================================================================
-    //  Tabela MÊS × INC × REQ
+    //  Tabela do bucket (MÊS ou DIA) × INC × REQ
     // =====================================================================
 
     /**
-     * @param array<string,string>                  $months  'Y-m' => 'DEZ/25'
-     * @param array<string,array{inc:int,req:int}>  $byMonth
+     * @param array<string,string>                 $buckets 'chave' => rótulo
+     * @param array<string,array{inc:int,req:int}> $byType
      */
-    private function drawMonthTable(array $months, array $byMonth, float $x0, float $y0, float $w): float
-    {
+    private function drawBucketTable(
+        array $buckets,
+        array $byType,
+        string $bucketLabel,
+        float $x0,
+        float $y0,
+        float $w
+    ): float {
         $cols = [$w * 0.44, $w * 0.28, $w * 0.28];
-        // Cabeçalho + meses + total têm de caber na folha; num período longo a
-        // linha encolhe em vez de invadir o rodapé.
-        $h    = min(7.0, 120.0 / max(3, count($months) + 2));
+        // Cabeçalho + buckets + total têm de caber na folha; no MENSAL são 31
+        // linhas, e com altura fixa a tabela invadiria o rodapé.
+        $h    = min(7.0, 120.0 / max(3, count($buckets) + 2));
+        $fs   = $h >= 6 ? 9 : ($h >= 4.5 ? 7.5 : 6);
 
         $this->SetFillColor(...self::C_HEAD);
         $this->SetTextColor(255, 255, 255);
-        $this->SetFont('helvetica', 'B', 8.5);
+        $this->SetFont('helvetica', 'B', min(8.5, $fs + 0.5));
         $this->SetXY($x0, $y0);
-        foreach ([__('Mês', 'servicereports'), __('INC', 'servicereports'), __('REQ', 'servicereports')] as $i => $label) {
+        foreach ([$bucketLabel, __('INC', 'servicereports'), __('REQ', 'servicereports')] as $i => $label) {
             $this->Cell($cols[$i], $h, self::upper($label), 0, 0, 'C', true);
         }
 
-        $y = $y0 + $h;
-        $i = 0;
+        $y  = $y0 + $h;
+        $i  = 0;
         $ti = 0;
         $tr = 0;
-        foreach ($months as $key => $label) {
-            $inc = (int) ($byMonth[$key]['inc'] ?? 0);
-            $req = (int) ($byMonth[$key]['req'] ?? 0);
+        foreach ($buckets as $key => $label) {
+            $inc = (int) ($byType[$key]['inc'] ?? 0);
+            $req = (int) ($byType[$key]['req'] ?? 0);
             $ti += $inc;
             $tr += $req;
 
@@ -147,7 +228,7 @@ class PluginServicereportsUpdatepdf extends PluginServicereportsCentralpdf
                 $this->SetFillColor(244, 246, 248);
             }
             $this->SetTextColor(...self::C_INK);
-            $this->SetFont('helvetica', '', $h >= 6 ? 9 : 7);
+            $this->SetFont('helvetica', '', $fs);
             $this->SetXY($x0, $y);
             $this->Cell($cols[0], $h, $label, 0, 0, 'C', $zebra);
             $this->Cell($cols[1], $h, (string) $inc, 0, 0, 'C', $zebra);
@@ -157,7 +238,7 @@ class PluginServicereportsUpdatepdf extends PluginServicereportsCentralpdf
 
         $this->SetDrawColor(...self::C_LINE);
         $this->Line($x0, $y, $x0 + $w, $y);
-        $this->SetFont('helvetica', 'B', 9);
+        $this->SetFont('helvetica', 'B', $fs);
         $this->SetTextColor(...self::C_INK);
         $this->SetXY($x0, $y + 0.5);
         $this->Cell($cols[0], $h, self::upper(__('Total', 'servicereports')), 0, 0, 'C');
@@ -173,7 +254,7 @@ class PluginServicereportsUpdatepdf extends PluginServicereportsCentralpdf
 
     /**
      * O `drawDonut()` herdado ocupa a folha inteira (legenda à esquerda, em
-     * x=40) e passaria por cima da tabela de meses. Aqui a rosca fica na
+     * x=40) e passaria por cima da tabela de buckets. Aqui a rosca fica na
      * metade direita e a legenda desce para debaixo dela.
      *
      * @param array<int,array{label:string,value:int,color:array}> $slices
@@ -238,97 +319,6 @@ class PluginServicereportsUpdatepdf extends PluginServicereportsCentralpdf
     }
 
     // =====================================================================
-    //  Barras agrupadas + linha (chamados por dia × backlog)
-    // =====================================================================
-
-    /**
-     * @param array<int,string> $labels
-     * @param array<int,array{name:string,color:array,data:array<int,int>}> $series
-     * @param array{name:string,color:array,data:array<int,int>} $line
-     */
-    private function drawCombo(array $labels, array $series, array $line, float $y0): void
-    {
-        $x0    = 24.0;
-        $x1    = 10.0 + self::W;
-        $plotW = $x1 - $x0;
-        $plotH = 108.0;
-        $n     = max(1, count($labels));
-        $k     = max(1, count($series));
-
-        $max = 0;
-        foreach ($series as $s) {
-            $max = max($max, (int) max($s['data'] ?: [0]));
-        }
-        $max = max($max, (int) max($line['data'] ?: [0]));
-        $min = (int) min($line['data'] ?: [0]);
-        [$bottom, $top, $step] = PluginServicereportsChart::niceRange($min, $max);
-
-        $base = $y0 + $plotH;
-        $span = max(1, $top - $bottom);
-        $yOf  = static fn (float $v): float => $base - (($v - $bottom) / $span) * $plotH;
-
-        $this->SetFont('helvetica', '', 6.5);
-        for ($v = $bottom; $v <= $top; $v += $step) {
-            $y = $yOf((float) $v);
-            $this->SetDrawColor(...self::C_LINE);
-            $this->Line($x0, $y, $x1, $y);
-            $this->SetTextColor(...self::C_FAINT);
-            $this->SetXY(10, $y - 2);
-            $this->Cell($x0 - 12, 4, (string) $v, 0, 0, 'R');
-        }
-
-        // A base das barras é a linha do zero, não o pé da área de plotagem.
-        $zero = $yOf(0);
-        $this->SetDrawColor(...self::C_HEAD);
-        $this->SetLineWidth(0.3);
-        $this->Line($x0, $zero, $x1, $zero);
-        $this->SetLineWidth(0.2);
-
-        $slot     = $plotW / $n;
-        $barW     = min(6.0, ($slot - 1.2) / $k);
-        $showVals = $n <= 32;
-
-        foreach (array_values($labels) as $i => $label) {
-            $bx = $x0 + $i * $slot + ($slot - $barW * $k) / 2;
-            foreach (array_values($series) as $j => $s) {
-                $v = (int) ($s['data'][$i] ?? 0);
-                if ($v <= 0) {
-                    continue;
-                }
-                $x  = $bx + $j * $barW;
-                $y  = $yOf((float) $v);
-                $this->SetFillColor(...$s['color']);
-                $this->Rect($x, $y, $barW, $zero - $y, 'F');
-                if ($showVals) {
-                    $this->SetFont('helvetica', '', 5.5);
-                    $this->SetTextColor(...self::C_SOFT);
-                    $this->SetXY($x - 4, $y - 3.6);
-                    $this->Cell($barW + 8, 3.2, (string) $v, 0, 0, 'C');
-                }
-            }
-        }
-
-        $this->SetDrawColor(...$line['color']);
-        $this->SetLineWidth(0.5);
-        $prev = null;
-        foreach (array_values($line['data']) as $i => $v) {
-            $x = $x0 + $i * $slot + $slot / 2;
-            $y = $yOf((float) $v);
-            if ($prev !== null) {
-                $this->Line($prev[0], $prev[1], $x, $y);
-            }
-            $prev = [$x, $y];
-        }
-        $this->SetLineWidth(0.2);
-        $this->SetFillColor(...$line['color']);
-        foreach (array_values($line['data']) as $i => $v) {
-            $this->Circle($x0 + $i * $slot + $slot / 2, $yOf((float) $v), 1.1, 0, 360, 'F');
-        }
-
-        $this->xLabels($labels, $x0, $slot, $base, $n > 20, (int) max(1, ceil($n / 34)));
-    }
-
-    // =====================================================================
     //  Entrada
     // =====================================================================
 
@@ -344,37 +334,46 @@ class PluginServicereportsUpdatepdf extends PluginServicereportsCentralpdf
         $period = date('d/m/Y', strtotime(substr($d['start'], 0, 10))) . ' ' . __('a', 'servicereports') . ' '
                 . date('d/m/Y', strtotime(substr($d['end'], 0, 10)));
 
-        $pdf = new self(self::plain((string) $d['client']), $period, self::title());
+        $pdf = new self(self::plain((string) $d['client']), $period, (string) $d['title']);
         $pdf->drawUpdateCover($d);
 
-        $navy  = self::rgb(PluginServicereportsChart::NAVY);
-        $steel = self::rgb(PluginServicereportsChart::STEEL);
-        $red   = self::rgb(PluginServicereportsChart::RED);
+        $navy   = self::rgb(PluginServicereportsChart::NAVY);
+        $steel  = self::rgb(PluginServicereportsChart::STEEL);
+        $titles = $d['series_titles'];
 
-        // 2) Relatório de atendimentos — legenda dos status
+        // 2) Relatório de atendimentos — total por status + legenda
         $y = $pdf->startSection(
             __('Relatório de atendimentos', 'servicereports'),
-            __('O que cada status de chamado significa no acompanhamento do atendimento.', 'servicereports')
+            __('Os chamados abertos no período pelo status em que estão agora, e o que cada status '
+             . 'significa no acompanhamento do atendimento.', 'servicereports')
         );
-        $pdf->drawGlossary($d['statuses'], $y);
+        $y = $pdf->drawStatusTable(
+            $d['by_status'],
+            self::plain((string) $d['status_period']),
+            (int) $d['total_open'],
+            24.0,
+            $y + 2,
+            140.0
+        );
+        $pdf->drawGlossary($d['statuses'], $y + 12);
 
-        // 3) Chamados por mês
-        $monthLabels = array_values($d['months']);
-        $incData     = [];
-        $reqData     = [];
-        foreach (array_keys($d['months']) as $m) {
-            $incData[] = (int) ($d['by_month'][$m]['inc'] ?? 0);
-            $reqData[] = (int) ($d['by_month'][$m]['req'] ?? 0);
+        // 3) Chamados por mês/dia, por tipo
+        $bucketLabels = array_values($d['buckets']);
+        $incData      = [];
+        $reqData      = [];
+        foreach (array_keys($d['buckets']) as $k) {
+            $incData[] = (int) ($d['by_type'][$k]['inc'] ?? 0);
+            $reqData[] = (int) ($d['by_type'][$k]['req'] ?? 0);
         }
         $y = $pdf->startSection(
-            __('Chamados por mês', 'servicereports'),
-            __('Chamados abertos em cada mês do período, separados por tipo.', 'servicereports'),
+            $titles['types'],
+            __('Chamados abertos no período, separados por tipo.', 'servicereports'),
             [
                 ['label' => array_sum($incData) . ' - ' . __('Incidente', 'servicereports'), 'color' => $navy],
                 ['label' => array_sum($reqData) . ' - ' . __('Requisição', 'servicereports'), 'color' => $steel],
             ]
         );
-        $pdf->drawBars($monthLabels, [
+        $pdf->drawBars($bucketLabels, [
             ['name' => __('Incidente', 'servicereports'), 'color' => $navy, 'data' => $incData],
             ['name' => __('Requisição', 'servicereports'), 'color' => $steel, 'data' => $reqData],
         ], $y);
@@ -385,7 +384,7 @@ class PluginServicereportsUpdatepdf extends PluginServicereportsCentralpdf
             __('Incidente e Requisição são os dois tipos de chamado do GLPI; o total é o de chamados '
              . 'abertos no período.', 'servicereports')
         );
-        $pdf->drawMonthTable($d['months'], $d['by_month'], 24.0, $y + 6, 96.0);
+        $pdf->drawBucketTable($d['buckets'], $d['by_type'], (string) $d['bucket_label'], 24.0, $y + 6, 96.0);
         $pdf->drawTypeDonut([
             ['label' => __('Incidente', 'servicereports'), 'value' => (int) $d['types']['inc'], 'color' => $navy],
             ['label' => __('Requisição', 'servicereports'), 'value' => (int) $d['types']['req'], 'color' => $steel],
@@ -402,34 +401,22 @@ class PluginServicereportsUpdatepdf extends PluginServicereportsCentralpdf
         );
         $pdf->drawHBars($d['categories']['rows'], $navy, $y);
 
-        // 6) Chamados por dia
-        $opened  = array_values($d['opened']);
-        $closed  = array_values($d['closed']);
-        $backlog = array_values($d['backlog']);
-        $last    = $backlog === [] ? 0 : (int) end($backlog);
+        // 6) Abertos × Fechados por mês/dia
+        $opened = array_values($d['opened']);
+        $closed = array_values($d['closed']);
         $y = $pdf->startSection(
-            __('Chamados por dia', 'servicereports'),
-            sprintf(
-                __('Abertos pela data de abertura e fechados pela data de fechamento. O backlog é a fila '
-                 . 'acumulada: parte dos %d chamados que já estavam em aberto na véspera do período e, a cada '
-                 . 'dia, soma os abertos e subtrai os fechados.', 'servicereports'),
-                (int) $d['backlog_initial']
-            ),
+            $titles['flow'],
+            __('Abertos pela data de abertura e fechados pela data de fechamento (status Fechado; chamado '
+             . 'só Solucionado ainda não conta).', 'servicereports'),
             [
                 ['label' => array_sum($opened) . ' - ' . __('Aberto', 'servicereports'), 'color' => $navy],
                 ['label' => array_sum($closed) . ' - ' . __('Fechado', 'servicereports'), 'color' => $steel],
-                ['label' => $last . ' - ' . __('Backlog', 'servicereports'), 'color' => $red],
             ]
         );
-        $pdf->drawCombo(
-            array_values($d['days']),
-            [
-                ['name' => __('Aberto', 'servicereports'), 'color' => $navy, 'data' => $opened],
-                ['name' => __('Fechado', 'servicereports'), 'color' => $steel, 'data' => $closed],
-            ],
-            ['name' => __('Backlog', 'servicereports'), 'color' => $red, 'data' => $backlog],
-            $y
-        );
+        $pdf->drawBars($bucketLabels, [
+            ['name' => __('Aberto', 'servicereports'), 'color' => $navy, 'data' => $opened],
+            ['name' => __('Fechado', 'servicereports'), 'color' => $steel, 'data' => $closed],
+        ], $y);
 
         // 7) Chamados por horário
         $hourLabels = [];

@@ -29,9 +29,11 @@ Depois disso, ainda sem mudança de schema (atualizar é copiar os arquivos e re
   "Premium") só aparecem se tiverem horas no período.
 - **2026-08-27** — a **Central de serviços** ganhou a sub-aba **Relatórios**, com o
   **"Relatório central de serviços"** e o **"Relatório de atualização - Cliente"**
-  (reimplementação do deck de atualização entregue ao cliente: chamados por mês, por tipo,
-  top 5 categorias, por dia com linha de backlog e por horário). Ambos exportam CSV e PDF.
-  Analistas ganhou o **"Chamados por Status e Técnico"** (barras empilhadas + PDF paisagem).
+  (reimplementação do deck entregue ao cliente: totais por status, chamados por tipo,
+  top 5 categorias, abertos × fechados e chamados por horário) em duas variantes —
+  **ANUAL**, com as séries por mês, e **MENSAL**, com as mesmas métricas por dia.
+  Todos exportam CSV e PDF. Analistas ganhou o **"Chamados por Status e Técnico"**
+  (barras empilhadas + PDF paisagem).
 
 Detalhes no [CHANGELOG.md](CHANGELOG.md). A versão para **GLPI 11** está no repositório
 `instant-glpi11-plugins`; ela acompanha tudo até 2026-08-27 (0.4.0, validada no GLPI
@@ -53,7 +55,8 @@ Reimplementação de 3 blocos do *Verdana vReports* (interno `vreports`):
 **Central de serviços**, **Gestão financeira** (lê dados do `managedservices`) e
 **Analistas**. Menu: **Gerência > Relatórios**.
 Central de serviços tem **Dashboard** (KPIs do mês) e **Relatórios** (Relatório central de
-serviços e Relatório de atualização - Cliente, com export CSV e PDF);
+serviços e Relatório de atualização - Cliente nas versões ANUAL e MENSAL, com export CSV
+e PDF);
 Gestão financeira tem **Dashboards** (KPIs + gráficos) e **Relatórios** (Extrato
 financeiro e Faturamento, com export CSV e PDF gerado por TCPDF);
 Analistas tem Técnicos, Relatórios (tarefas por técnico, deslocamentos, horas fora de

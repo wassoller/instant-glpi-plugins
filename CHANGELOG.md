@@ -4,6 +4,30 @@ Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/).
 Alvo: **GLPI 10.0.x** (validado em 10.0.26). A versão para GLPI 11 tem changelog
 próprio no repositório `instant-glpi11-plugins`.
 
+## [0.5.5] — 2026-08-28 (não lançado)
+
+Paridade com o repo GLPI 11 e ajuste de autoria. Sem mudança de schema.
+
+### Alterado
+- **Autor dos dois plugins** passou a ser **Lyon Wassoller** (campo `author` do
+  `plugin_version_*()` em `managedservices/setup.php` e `servicereports/setup.php`).
+  **Numa instalação que já tem o plugin, o nome novo não aparece sozinho**: o GLPI só
+  reescreve nome/autor/versão em `glpi_plugins` quando a **versão** muda
+  (`Plugin::checkPluginState()`). Como a versão continua `0.1.0`, depois do deploy rode
+  `UPDATE glpi_plugins SET author='Lyon Wassoller' WHERE directory IN ('managedservices','servicereports');`
+  — instalação nova já lê o autor do `setup.php`.
+- `front/servicecentral.php`: o docblock dizia "Quatro relatórios" com cinco na lista.
+
+### Documentação
+- **A fila de port para o GLPI 11 foi zerada** ([docs/PORT-GLPI11.md](docs/PORT-GLPI11.md)):
+  o repo `instant-glpi11-plugins` recebeu numa leva só o "Relatório de atualização -
+  Cliente" (ANUAL e MENSAL), o "Chamados por grupo", o "Chamados por entidade" e o 2º
+  gráfico do relatório 61 — versão **0.5.0** lá, validada no GLPI 11.0.8. **Os dois repos
+  estão em paridade.**
+- O `PORT-GLPI11.md` passou a registrar **como** o port foi feito, para repetir: a
+  transformação mecânica é validada sobre o commit de paridade (tem de reproduzir byte a
+  byte os arquivos que já estão lá) e depois aplicada ao **patch**, não ao arquivo inteiro.
+
 ## [0.5.4] — 2026-08-28 (não lançado)
 
 Segundo relatório novo na Central de serviços, reaproveitando o gráfico do 61. Sem

@@ -34,10 +34,21 @@ Depois disso, ainda sem mudança de schema (atualizar é copiar os arquivos e re
   **ANUAL**, com as séries por mês, e **MENSAL**, com as mesmas métricas por dia.
   Todos exportam CSV e PDF. Analistas ganhou o **"Chamados por Status e Técnico"**
   (barras empilhadas + PDF paisagem).
+- **2026-08-28** — três relatórios a mais, todos com CSV e PDF:
+  - Analistas › "Chamados por Status e Técnico" ganhou um **segundo gráfico**, "Chamados
+    por tipo e técnico", quebrando os **mesmos** chamados em **Incidente × Requisição**.
+  - Central de serviços › **"Chamados por grupo"**: os chamados do período pelo **grupo
+    atribuído** ao chamado (a fila que aparece ao lado do técnico).
+  - Central de serviços › **"Chamados por entidade"**: o gráfico de barras empilhadas por
+    status, com **entidade** no eixo X, englobando os chamados em qualquer status.
+  No mesmo dia o **autor** dos plugins passou a ser Lyon Wassoller — numa instalação que
+  já existe, o nome novo só aparece depois de atualizar a linha do plugin em
+  `glpi_plugins` (ver o CHANGELOG).
 
 Detalhes no [CHANGELOG.md](CHANGELOG.md). A versão para **GLPI 11** está no repositório
-`instant-glpi11-plugins`; ela acompanha tudo até 2026-08-27 (0.4.0, validada no GLPI
-11.0.8), **menos** o "Relatório de atualização - Cliente", ainda a portar.
+`instant-glpi11-plugins` e está **em paridade** com esta desde 2026-08-28 (0.5.0 lá,
+validada no GLPI 11.0.8); a fila de port fica em
+[docs/PORT-GLPI11.md](docs/PORT-GLPI11.md).
 
 ## Alvo
 - **GLPI 10.0.x** (validado contra 10.0.26), PHP 8.x.
@@ -54,13 +65,14 @@ Composição do serviço, Financeiro (valores historizados) e Configuração NMS
 Reimplementação de 3 blocos do *Verdana vReports* (interno `vreports`):
 **Central de serviços**, **Gestão financeira** (lê dados do `managedservices`) e
 **Analistas**. Menu: **Gerência > Relatórios**.
-Central de serviços tem **Dashboard** (KPIs do mês) e **Relatórios** (Relatório central de
-serviços e Relatório de atualização - Cliente nas versões ANUAL e MENSAL, com export CSV
-e PDF);
+Central de serviços tem **Dashboard** (KPIs do mês) e **Relatórios** — cinco: Relatório
+central de serviços, Relatório de atualização - Cliente (ANUAL e MENSAL), Chamados por
+grupo e Chamados por entidade, todos com export CSV e PDF;
 Gestão financeira tem **Dashboards** (KPIs + gráficos) e **Relatórios** (Extrato
 financeiro e Faturamento, com export CSV e PDF gerado por TCPDF);
 Analistas tem Técnicos, Relatórios (tarefas por técnico, deslocamentos, horas fora de
-expediente e **Entidade vs. Analistas**) e Mapas. As listagens paginam de 10 em 10;
+expediente, **Entidade vs. Analistas** e **Chamados por Status e Técnico**, este com um
+segundo gráfico por tipo) e Mapas. As listagens paginam de 10 em 10;
 CSV e PDF saem completos — a matriz de "Entidade vs. Analistas" também não pagina.
 
 ## Versão GLPI 11
@@ -98,8 +110,10 @@ Guia completo em [docs/INSTALL.md](docs/INSTALL.md) (e `docs/INSTALL.pdf`). Resu
 - [x] **Fase 6** — `servicereports`: Analistas (Técnicos, Relatórios, Mapas). *Validado em GLPI 10.0.26. Deslocamentos e Mapas dependem de fontes de dados não-nativas (Verdana) — estrutura + nota.*
 - [~] **Fase 7** — polish: **feito** os pacotes `dist/*.zip`, o guia de instalação, o
   deploy na VM real (`/var/www/instant/glpi`) e a **paridade da versão GLPI 11** (em dia
-  desde 2026-08-26); **pendente** as traduções `.mo` (os textos já saem em pt-BR via
-  `__()`) e o refino de ícones.
+  desde 2026-08-28, versão 0.5.0 lá); **pendente** as traduções `.mo` (os textos já saem
+  em pt-BR via `__()`), o refino de ícones, subir a **versão** dos plugins (ainda `0.1.0`
+  nos `setup.php`) e instalar a versão GLPI 11 numa **VM real** — ela só foi validada em
+  ambiente local.
 
 Também disponível: **port para GLPI 11** no repositório `instant-glpi11-plugins`.
 

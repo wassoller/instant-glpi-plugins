@@ -63,7 +63,11 @@ Fluxo por mudança:
    reaproveitando o cookie (`curl -c/-b`).
 5. **Teste sempre nas duas condições de entidade**: raiz vendo tudo *e* sessão restrita a
    uma entidade filha. Vários bugs (ver `getEntitiesRestrictRequest` abaixo) só aparecem
-   na segunda. Dados de exemplo: `.testenv/seed-test-data.sql`.
+   na segunda. Dados de exemplo (todos gitignored, em `.testenv/`): `seed-test-data.sql`
+   (base), `seed-status-tech.sql` (chamados com técnico atribuído, para os relatórios 61 e
+   60), `seed-update-report.sql` e `seed-groups.sql` (grupos + variação de tipo
+   Incidente/Requisição, para os relatórios 4 e 61). **Teste também o caso vazio** — um
+   período sem chamado nenhum já revelou um PDF quebrado que a tela não mostrava.
 6. Depois de mexer em entidades/categorias **por SQL direto**, rode
    `php bin/console cache:clear` — o GLPI cacheia as árvores (`sons_cache`) e você pode
    concluir errado que uma correção não funcionou.
@@ -79,6 +83,16 @@ recarregar (sem mudança de schema, não reinstale nada):
 ```bash
 cd /tmp/instant-glpi-plugins && git pull && sudo cp -r managedservices servicereports /var/www/instant/glpi/plugins/ && sudo chown -R www-data:www-data /var/www/instant/glpi/plugins/managedservices /var/www/instant/glpi/plugins/servicereports
 ```
+
+**Metadados do plugin (nome, autor, versão) não se atualizam sozinhos** (descoberto em
+2026-08-28): o GLPI só reescreve a linha de `glpi_plugins` quando a **versão** muda
+(`Plugin::checkPluginState()`). Trocar só o `author` no `setup.php` não muda nada na lista
+de plugins de quem já tem o plugin instalado — ou você atualiza a linha na mão
+(`UPDATE glpi_plugins SET author='…' WHERE directory IN ('managedservices','servicereports');`)
+ou sobe a versão, e aí o GLPI **desativa** o plugin e exige o processo de atualização.
+Instalação nova lê tudo do `setup.php`. (A versão dos dois plugins continua `0.1.0`,
+enquanto o CHANGELOG vai em 0.5.x — subir isso é faxina pendente, com esse efeito
+colateral em mente.)
 
 **Lição cara (2026-08-19):** três correções seguidas pareceram "não fazer efeito" porque
 o `cp` para o caminho errado falhava com `No such file or directory` enquanto o
@@ -428,17 +442,20 @@ nunca paginam**; os formulários de filtro não enviam `start`, então filtrar v
 
 Traduções `.mo` (hoje os textos saem em pt-BR direto pelos `__()`), refino de ícones.
 Rebuild dos `dist/*.zip` antes do deploy (o `zip -rq dist/<plugin>.zip <plugin>` já é o
-suficiente). A **paridade com o repo GLPI 11** (`instant-glpi11-plugins`) está **em dia
-desde 2026-08-27** (versão 0.4.0 lá): as mudanças de 25/08 (regra de período por
-fechamento, layout "Institucional", PDF via TCPDF, remoção do relatório 4), o relatório
-60 ("Entidade vs. Analistas") e o relatório 61 ("Chamados por Status e Técnico", com o
-gráfico SVG e o PDF paisagem) e o "Relatório central de serviços" (Central de serviços ›
-Relatórios) já foram portados e validados no GLPI 11.0.8.
+suficiente; confira descompactando e comparando com a pasta do plugin). Subir a **versão**
+dos plugins (`0.1.0` nos `setup.php`, contra 0.5.x no CHANGELOG) — lembrando do efeito no
+`glpi_plugins` descrito em "Deploy em produção". O GLPI 11 nunca foi instalado numa **VM
+real**, só validado local.
+
+**Paridade com o repo GLPI 11** (`instant-glpi11-plugins`): **em dia desde 2026-08-28**
+(versão **0.5.0** lá, validada no GLPI 11.0.8). Além do que já tinha ido antes (25/08,
+relatório 60, relatório 61 e o "Relatório central de serviços"), foi numa leva só o
+"Relatório de atualização - Cliente" (ids 2 e 3), o 2º gráfico do 61, o "Chamados por
+grupo" e o "Chamados por entidade".
 **A fila de port fica em [docs/PORT-GLPI11.md](docs/PORT-GLPI11.md)** — acrescente um item
-lá a cada mudança aqui e risque quando portar. Em **2026-08-28 ela foi zerada**: o repo 11
-recebeu de uma vez o "Relatório de atualização - Cliente" (ids 2 e 3), o 2º gráfico do
-relatório 61, o "Chamados por grupo" e o "Chamados por entidade" (versão 0.5.0 lá), tudo
-validado no GLPI 11.0.8. **Os dois repos estão em paridade.**
+lá a cada mudança aqui e risque quando portar; ela também registra **como** o port é feito
+(transformação mecânica validada sobre o commit de paridade e aplicada ao *patch*, não ao
+arquivo inteiro).
 **Ao mexer na lógica aqui, porte lá na sequência** — divergência entre os dois repos é o
 principal risco do projeto.
 

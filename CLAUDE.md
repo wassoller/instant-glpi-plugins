@@ -435,11 +435,10 @@ fechamento, layout "Institucional", PDF via TCPDF, remoção do relatório 4), o
 gráfico SVG e o PDF paisagem) e o "Relatório central de serviços" (Central de serviços ›
 Relatórios) já foram portados e validados no GLPI 11.0.8.
 **A fila de port fica em [docs/PORT-GLPI11.md](docs/PORT-GLPI11.md)** — acrescente um item
-lá a cada mudança aqui e risque quando portar. Hoje ela tem: o **"Relatório de atualização
-- Cliente"** nas duas variantes (ids 2 e 3), de 27/08; o segundo gráfico do relatório 61
-(**"Chamados por tipo e técnico"**); o relatório **4 — "Chamados por grupo"**; e o
-**5 — "Chamados por entidade"** (com o `stackedAssets()` e o `statustechpdf`
-parametrizado), os três de 28/08.
+lá a cada mudança aqui e risque quando portar. Em **2026-08-28 ela foi zerada**: o repo 11
+recebeu de uma vez o "Relatório de atualização - Cliente" (ids 2 e 3), o 2º gráfico do
+relatório 61, o "Chamados por grupo" e o "Chamados por entidade" (versão 0.5.0 lá), tudo
+validado no GLPI 11.0.8. **Os dois repos estão em paridade.**
 **Ao mexer na lógica aqui, porte lá na sequência** — divergência entre os dois repos é o
 principal risco do projeto.
 

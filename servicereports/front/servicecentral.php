@@ -4,7 +4,7 @@
  *
  * Sub-abas:
  *   - Dashboard   → KPIs do mês corrente (cartões com deep-link para a busca).
- *   - Relatórios  → seletor de relatório + filtro de período. Quatro relatórios,
+ *   - Relatórios  → seletor de relatório + filtro de período. Cinco relatórios,
  *                   todos com CSV e PDF (os três primeiros com 7 seções):
  *                     1 "Relatório central de serviços"
  *                     2 "Relatório de atualização - Cliente - ANUAL"  (por mês)

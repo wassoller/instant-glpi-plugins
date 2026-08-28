@@ -13,7 +13,12 @@
  * repetem em toda folha com "Página X de Y", e a tabela quebra sozinha.
  *
  * Layout "Institucional", a mesma paleta do extrato; as cores das barras vêm
- * de PluginServicereportsAnalysts::STATUS_COLORS, então tela e papel batem.
+ * do próprio array de dados, então tela e papel batem.
+ *
+ * **É também a base do PDF de "Chamados por entidade"** (id 5 da Central de
+ * serviços): tudo o que é específico do relatório 61 está em propriedades
+ * (`$metaLabel`, `$metaValue`, `$reportName`, `$firstCol`, `$rowLabelKey`) e os
+ * métodos de desenho são `protected`. Ao mexer aqui, lembre dos dois.
  */
 
 if (!defined('GLPI_ROOT')) {
@@ -23,11 +28,11 @@ if (!defined('GLPI_ROOT')) {
 class PluginServicereportsStatustechpdf extends TCPDF
 {
     /** Largura útil da folha (A4 paisagem, margens de 10mm). */
-    private const W = 277.0;
+    protected const W = 277.0;
 
-    /** Largura da 1ª coluna (Técnico) e da última (Total) da tabela. */
-    private const COL_NAME  = 72.0;
-    private const COL_TOTAL = 31.0;
+    /** Largura da 1ª coluna (Técnico/Entidade) e da última (Total) da tabela. */
+    protected const COL_NAME  = 72.0;
+    protected const COL_TOTAL = 31.0;
 
     /**
      * Larguras da tabela: Técnico + $n colunas iguais + Total (soma = W).
@@ -35,39 +40,57 @@ class PluginServicereportsStatustechpdf extends TCPDF
      *
      * @return array<int,float>
      */
-    private static function cols(int $n): array
+    protected static function cols(int $n): array
     {
         $w = (self::W - self::COL_NAME - self::COL_TOTAL) / max(1, $n);
         return array_merge([self::COL_NAME], array_fill(0, $n, $w), [self::COL_TOTAL]);
     }
 
-    // Paleta do layout "Institucional" (igual à do extrato).
-    private const C_INK    = [22, 32, 42];
-    private const C_SOFT   = [92, 107, 121];
-    private const C_FAINT  = [139, 152, 165];
-    private const C_LINE   = [216, 222, 228];
-    private const C_HEAD   = [34, 49, 64];
-    private const C_ZEBRA  = [245, 248, 250];
-    private const C_ACCENT = [15, 111, 140];
+    // Paleta do layout "Institucional" (igual à do extrato). `protected`: a
+    // subclasse "Chamados por entidade" também escreve na folha.
+    protected const C_INK    = [22, 32, 42];
+    protected const C_SOFT   = [92, 107, 121];
+    protected const C_FAINT  = [139, 152, 165];
+    protected const C_LINE   = [216, 222, 228];
+    protected const C_HEAD   = [34, 49, 64];
+    protected const C_ZEBRA  = [245, 248, 250];
+    protected const C_ACCENT = [15, 111, 140];
 
-    private string $start = '';
-    private string $end   = '';
-    private string $techLabel = '';
-    private string $printedBy = '';
+    protected string $start = '';
+    protected string $end   = '';
+    protected string $printedBy = '';
     /** Título da seção em curso — vai no cabeçalho da folha (muda por seção). */
-    private string $section = '';
+    protected string $section = '';
 
-    public function __construct(string $start, string $end, string $techLabel)
+    // --- O que muda entre o relatório 61 e o "Chamados por entidade" ---
+    /** Rótulo e valor da 1ª linha do cabeçalho (TÉCNICO: Todos / CLIENTE: X). */
+    protected string $metaLabel = '';
+    protected string $metaValue = '';
+    /** Nome do relatório, no rodapé de toda folha. */
+    protected string $reportName = '';
+    /** Bloco a que o relatório pertence — subtítulo do cabeçalho. */
+    protected string $subtitle = '';
+    /** Rótulo da 1ª coluna da tabela (Técnico / Entidade). */
+    protected string $firstCol = '';
+    /** Chave de `$row` usada como rótulo na tabela (a entidade usa o nome completo). */
+    protected string $rowLabelKey = 'name';
+
+    public function __construct(string $start, string $end, string $metaValue)
     {
         parent::__construct('L', 'mm', 'A4', true, 'UTF-8');
 
         $this->start     = $start;
         $this->end       = $end;
-        $this->techLabel = $techLabel;
+        $this->metaValue = $metaValue;
         $this->printedBy = getUserName(Session::getLoginUserID());
 
+        $this->metaLabel  = __('Técnico', 'servicereports');
+        $this->firstCol   = __('Técnico', 'servicereports');
+        $this->reportName = __('Chamados por Status e Técnico', 'servicereports');
+        $this->subtitle   = __('Desempenho de analistas', 'servicereports');
+
         $this->SetCreator('GLPI · servicereports');
-        $this->SetTitle(__('Chamados por status e técnico', 'servicereports'));
+        $this->SetTitle($this->reportName);
         $this->SetMargins(10, 30, 10);
         $this->SetAutoPageBreak(true, 16);
         $this->setImageScale(1.25);
@@ -97,10 +120,10 @@ class PluginServicereportsStatustechpdf extends TCPDF
         $this->Cell(120, 6, $this->section, 0, 2, 'L');
         $this->SetFont('helvetica', '', 7.5);
         $this->SetTextColor(...self::C_SOFT);
-        $this->Cell(120, 4, __('Desempenho de analistas', 'servicereports'), 0, 0, 'L');
+        $this->Cell(120, 4, $this->subtitle, 0, 0, 'L');
 
         $rows = [
-            [__('Técnico', 'servicereports'), $this->techLabel],
+            [$this->metaLabel, $this->metaValue],
             [__('Período', 'servicereports'), Html::convDate($this->start) . ' – ' . Html::convDate($this->end)],
             [__('Emissão', 'servicereports'), Html::convDateTime(date('Y-m-d H:i:s'))],
         ];
@@ -135,7 +158,7 @@ class PluginServicereportsStatustechpdf extends TCPDF
         // Footer da folha anterior dentro do AddPage, ou seja depois de o
         // título da seção nova já ter sido trocado — a folha do status sairia
         // com o rodapé do tipo.
-        $this->Cell(self::W / 2, 5, __('Chamados por Status e Técnico', 'servicereports'), 0, 0, 'L');
+        $this->Cell(self::W / 2, 5, $this->reportName, 0, 0, 'L');
         $this->Cell(
             self::W / 2,
             5,
@@ -159,7 +182,7 @@ class PluginServicereportsStatustechpdf extends TCPDF
     // =====================================================================
 
     /** Legenda da pilha, na ordem que o relatório definiu (`legend`). */
-    private function drawLegend(array $data): void
+    protected function drawLegend(array $data): void
     {
         $y = $this->GetY();
         $x = 10.0;
@@ -182,7 +205,7 @@ class PluginServicereportsStatustechpdf extends TCPDF
      *
      * @param array $data saída de getStatusByTechnician()/getTypeByTechnician()
      */
-    private function drawChart(array $data, float $plotH): void
+    protected function drawChart(array $data, float $plotH): void
     {
         $rows = $data['rows'];
         [$top, $step] = PluginServicereportsAnalysts::niceScale((int) $data['max']);
@@ -259,14 +282,14 @@ class PluginServicereportsStatustechpdf extends TCPDF
     }
 
     /** Altura do cabeçalho da tabela (duas linhas de rótulo). */
-    private const HEAD_H = 10.0;
+    protected const HEAD_H = 10.0;
 
     /**
      * Cabeçalho escuro da tabela. Os rótulos saem em `MultiCell` porque
      * "Em atendimento (atribuído)" não cabe numa linha de 29mm — e o `Cell`
      * do TCPDF não quebra: transborda por cima da coluna vizinha.
      */
-    private function drawTableHead(array $data): void
+    protected function drawTableHead(array $data): void
     {
         $cols = self::cols(count($data['keys']));
         $h    = self::HEAD_H;
@@ -277,7 +300,7 @@ class PluginServicereportsStatustechpdf extends TCPDF
         $this->SetTextColor(255, 255, 255);
         $this->SetFont('helvetica', 'B', 6);
 
-        $cells = [__('Técnico', 'servicereports')];
+        $cells = [$this->firstCol];
         foreach ($data['keys'] as $k) {
             $cells[] = $data['labels'][$k];
         }
@@ -307,7 +330,7 @@ class PluginServicereportsStatustechpdf extends TCPDF
     }
 
     /** Tabela técnico × pilha, com quebra de página e cabeçalho repetido. */
-    private function drawTable(array $data): void
+    protected function drawTable(array $data): void
     {
         $cols = self::cols(count($data['keys']));
         $last = count($cols) - 1;
@@ -347,7 +370,7 @@ class PluginServicereportsStatustechpdf extends TCPDF
             $this->SetFont('helvetica', '', 7);
             $this->SetTextColor(...self::C_INK);
             $this->SetXY($x, $y);
-            $this->Cell($cols[0], $h, self::shorten(self::plain((string) $row['name']), 52), 0, 0, 'L');
+            $this->Cell($cols[0], $h, self::shorten(self::plain((string) $row[$this->rowLabelKey]), 52), 0, 0, 'L');
             $x += $cols[0];
 
             $k = 1;
@@ -406,7 +429,7 @@ class PluginServicereportsStatustechpdf extends TCPDF
     // =====================================================================
 
     /** Caminho da logo no disco (o TCPDF lê arquivo, não URL). */
-    private static function logoFile(): string
+    protected static function logoFile(): string
     {
         foreach (['instant-logo.png', 'logo.png', 'logo.jpg'] as $file) {
             $path = GLPI_ROOT . '/plugins/servicereports/pics/' . $file;
@@ -418,19 +441,19 @@ class PluginServicereportsStatustechpdf extends TCPDF
     }
 
     /** Texto puro: o GLPI devolve conteúdo HTML-escapado (ex.: `&#62;`). */
-    private static function plain(string $v): string
+    protected static function plain(string $v): string
     {
         return html_entity_decode(strip_tags($v), ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
 
     /** Caixa alta ciente de acento (mb_strtoupper — strtoupper erra em UTF-8). */
-    private static function upper(string $v): string
+    protected static function upper(string $v): string
     {
         return function_exists('mb_strtoupper') ? mb_strtoupper($v, 'UTF-8') : strtoupper($v);
     }
 
     /** Corta o texto com reticências (o `Cell` do TCPDF transborda, não corta). */
-    private static function shorten(string $v, int $max): string
+    protected static function shorten(string $v, int $max): string
     {
         return mb_strlen($v) > $max ? mb_substr($v, 0, $max - 1) . '…' : $v;
     }
@@ -445,7 +468,7 @@ class PluginServicereportsStatustechpdf extends TCPDF
      * @param array  $data    saída de getStatusByTechnician()/getTypeByTechnician()
      * @param string $summary linha de resumo impressa acima da legenda
      */
-    private function drawSection(array $data, string $summary): void
+    protected function drawSection(array $data, string $summary): void
     {
         $this->SetFont('helvetica', '', 8);
         $this->SetTextColor(...self::C_SOFT);

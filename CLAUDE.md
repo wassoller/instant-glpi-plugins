@@ -197,10 +197,11 @@ Os plugins já rodam em **produção** no GLPI 10 da Instant
 existiam) e **Relatórios**, com **quatro** relatórios no seletor:
 **1 — "Relatório central de serviços"**,
 **2 — "Relatório de atualização - Cliente - ANUAL"**,
-**3 — "Relatório de atualização - Cliente - MENSAL"** e
-**4 — "Chamados por grupo"**.
+**3 — "Relatório de atualização - Cliente - MENSAL"**,
+**4 — "Chamados por grupo"** e
+**5 — "Chamados por entidade"**.
 Os três primeiros têm 7 seções na tela e 7 páginas no PDF; o 4 tem 3 (capa, gráfico e
-tabela). Todos exportam CSV e PDF.
+tabela) e o 5 tem 3 na tela e 1 no PDF. Todos exportam CSV e PDF.
 
 ### Relatório central de serviços (id 1)
 
@@ -295,6 +296,43 @@ lembre que são **quatro** relatórios usando aquele código).
   no subtítulo do cabeçalho de toda folha.
 - O `centralpdf` tem `SetAutoPageBreak(false)` (uma seção por folha), então a tabela quebra
   **na mão** — com muitos grupos ela continua na folha seguinte com o cabeçalho repetido.
+
+### Chamados por entidade (id 5)
+
+Pedido da Instant em 28/08, com um print do relatório 61 e "Entidade A / Entidade B"
+escritos por cima do eixo: **é o gráfico do relatório 61 com entidade no lugar de
+técnico**. Por isso ele **não** tem código de gráfico próprio —
+`inc/entityreport.class.php` só monta os dados no formato que o
+`PluginServicereportsAnalysts::renderStackedChart()` consome (`keys`/`legend`/`labels`/
+`colors`/`rows`), e o PDF (`inc/entityreportpdf.class.php`) **estende o
+`statustechpdf`**. Mexeu na aparência do 61, este acompanha de graça — e vice-versa.
+
+- **Todos os chamados, em qualquer status**: não há filtro de status na consulta (a pilha
+  é só a quebra visual). Recorte pela **data de abertura**.
+- **Sem soma na árvore**: o chamado conta **uma vez**, na entidade em que foi aberto
+  (`glpi_tickets.entities_id`) — "Instant > Standard > Uniletra" **não** soma em
+  "Standard". Assim a soma das barras é o total de chamados do período. Se a Instant
+  pedir o acumulado da árvore, é `getSonsOf('glpi_entities', …)` — mas aí a soma passa do
+  total e o rodapé precisa dizer isso.
+- Entram **só as entidades com chamado** (não é a lista de entidades visíveis, como no
+  relatório 60), ordenadas pelo **completename** — irmãs saem juntas no eixo, como no
+  modelo da Instant (que não ordena por tamanho de barra).
+- O eixo usa o nome **curto** da entidade (`glpi_entities.name`) e a tabela o **completo**
+  (`completename`): no SVG o rótulo é cortado em 22 caracteres e "Instant > Standard >
+  Uniletra" viraria "Instant > Standard > U…". No PDF isso é o `$rowLabelKey` do
+  `statustechpdf` (a tabela usa `fullname`, o gráfico usa `name`).
+- **`PluginServicereportsStatustechpdf` virou base de dois relatórios**: o que é do 61
+  está em propriedades (`$metaLabel`, `$metaValue`, `$reportName`, `$subtitle`,
+  `$firstCol`, `$rowLabelKey`) e os métodos de desenho são `protected`. A entrada da
+  subclasse se chama **`buildEntity()`** e não `build()` porque o PHP não deixa
+  sobrescrever um método estático com assinatura incompatível (o pai recebe os **dois**
+  conjuntos do 61). **As constantes precisam ser `protected`** — com `private` a subclasse
+  não as enxerga, e o erro só aparece no caminho que as usa (aqui, o "período sem
+  chamados", que ficou um PDF quebrado até o teste pegar).
+- O CSS e o tooltip do gráfico saem de **`PluginServicereportsAnalysts::stackedAssets()`**
+  (uma vez por página, chamado pelo `renderStackedChart()`), e não mais da tela: são duas
+  telas usando o mesmo gráfico. O tooltip escuta no `document` (delegação), então não
+  depende de quantos gráficos existem nem da ordem em que o script é emitido.
 
 ## Relatórios de Gestão financeira — cuidados
 
@@ -396,10 +434,12 @@ fechamento, layout "Institucional", PDF via TCPDF, remoção do relatório 4), o
 60 ("Entidade vs. Analistas") e o relatório 61 ("Chamados por Status e Técnico", com o
 gráfico SVG e o PDF paisagem) e o "Relatório central de serviços" (Central de serviços ›
 Relatórios) já foram portados e validados no GLPI 11.0.8.
-**Pendente de port:** o **"Relatório de atualização - Cliente"** nas duas variantes
-(Central de serviços › Relatórios, ids 2 e 3), de 27/08, e o segundo gráfico do
-relatório 61 (**"Chamados por tipo e técnico"**, tela + CSV + PDF) e o relatório
-**4 — "Chamados por grupo"** (Central de serviços › Relatórios), os dois de 28/08.
+**A fila de port fica em [docs/PORT-GLPI11.md](docs/PORT-GLPI11.md)** — acrescente um item
+lá a cada mudança aqui e risque quando portar. Hoje ela tem: o **"Relatório de atualização
+- Cliente"** nas duas variantes (ids 2 e 3), de 27/08; o segundo gráfico do relatório 61
+(**"Chamados por tipo e técnico"**); o relatório **4 — "Chamados por grupo"**; e o
+**5 — "Chamados por entidade"** (com o `stackedAssets()` e o `statustechpdf`
+parametrizado), os três de 28/08.
 **Ao mexer na lógica aqui, porte lá na sequência** — divergência entre os dois repos é o
 principal risco do projeto.
 

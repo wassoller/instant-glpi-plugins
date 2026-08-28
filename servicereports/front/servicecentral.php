@@ -10,6 +10,8 @@
  *                     2 "Relatório de atualização - Cliente - ANUAL"  (por mês)
  *                     3 "Relatório de atualização - Cliente - MENSAL" (por dia)
  *                     4 "Chamados por grupo" (grupo atribuído; capa, gráfico e tabela)
+ *                     5 "Chamados por entidade" (o gráfico do relatório 61 com
+ *                       entidade no eixo X; capa, gráfico e tabela)
  *
  * Os relatórios 2 e 3 são a **mesma** implementação com granularidades
  * diferentes (PluginServicereportsUpdatereport::GRAIN_MONTH / GRAIN_DAY).
@@ -187,6 +189,51 @@ if ($tab === 'relatorios' && $report === 4 && ($_GET['export'] ?? '') === 'csv')
     exit;
 }
 
+// Relatório 5 — "Chamados por entidade": cabeçalho com os números do período e
+// a matriz entidade × status (a mesma tabela da tela).
+if ($tab === 'relatorios' && $report === 5 && ($_GET['export'] ?? '') === 'csv') {
+    $d = PluginServicereportsEntityreport::getReport($startDt, $endDt);
+
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="chamados_por_entidade_' . $start . '_' . $end . '.csv"');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF"); // BOM p/ acentos no Excel
+    $dec = static fn ($v) => html_entity_decode((string) $v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $put = static function (array $line) use ($out, $dec) {
+        fputcsv($out, array_map($dec, $line), ';', '"', '');
+    };
+
+    $put([PluginServicereportsEntityreport::title()]);
+    $put(['Cliente', $d['client']]);
+    $put(['Período', $periodLabel]);
+    $put(['Chamados no período', (int) $d['grand']]);
+    $put(['Entidades com chamado', (int) $d['entities']]);
+    $put([]);
+
+    $header = ['Entidade'];
+    foreach ($d['keys'] as $k) {
+        $header[] = $d['labels'][$k];
+    }
+    $header[] = 'Total';
+    $put($header);
+    foreach ($d['rows'] as $row) {
+        $line = [$row['fullname']];
+        foreach ($d['keys'] as $k) {
+            $line[] = (int) ($row['counts'][$k] ?? 0);
+        }
+        $line[] = (int) $row['total'];
+        $put($line);
+    }
+    $line = ['Total'];
+    foreach ($d['keys'] as $k) {
+        $line[] = (int) ($d['totals'][$k] ?? 0);
+    }
+    $line[] = (int) $d['grand'];
+    $put($line);
+    fclose($out);
+    exit;
+}
+
 // ---------------------------------------------------------------------------
 // PDF (TCPDF) — antes de qualquer saída HTML.
 //
@@ -233,6 +280,21 @@ if ($tab === 'relatorios' && $report === 4 && ($_GET['pdf'] ?? '') === '1') {
     ob_end_clean();
 
     $file = 'chamados_por_grupo_' . $start . '_' . $end . '.pdf';
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: inline; filename="' . $file . '"');
+    header('Content-Length: ' . strlen($bytes));
+    echo $bytes;
+    exit;
+}
+
+if ($tab === 'relatorios' && $report === 5 && ($_GET['pdf'] ?? '') === '1') {
+    $d = PluginServicereportsEntityreport::getReport($startDt, $endDt);
+
+    ob_start();
+    $bytes = PluginServicereportsEntityreportpdf::buildEntity($d, $start, $end, (string) $d['client']);
+    ob_end_clean();
+
+    $file = 'chamados_por_entidade_' . $start . '_' . $end . '.pdf';
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="' . $file . '"');
     header('Content-Length: ' . strlen($bytes));
@@ -294,6 +356,7 @@ if ($tab === 'dashboard') {
         2 => PluginServicereportsUpdatereport::title(PluginServicereportsUpdatereport::GRAIN_MONTH),
         3 => PluginServicereportsUpdatereport::title(PluginServicereportsUpdatereport::GRAIN_DAY),
         4 => PluginServicereportsGroupreport::title(),
+        5 => PluginServicereportsEntityreport::title(),
     ];
     echo "<form method='get' action='" . Html::cleanInputText($base) . "' class='mb-3' id='reportform'>";
     echo Html::hidden('tab', ['value' => 'relatorios']);
@@ -318,7 +381,7 @@ if ($tab === 'dashboard') {
     echo "<div class='col-auto'>" . Html::submit(__('Filtrar', 'servicereports'), ['class' => 'btn btn-primary']) . "</div>";
     echo "</div></form>";
 
-    if (!in_array($report, [1, 2, 3, 4], true)) {
+    if (!in_array($report, [1, 2, 3, 4, 5], true)) {
         echo "<div class='alert alert-info'>" . __('Selecione um relatório.', 'servicereports') . "</div>";
     } else {
         $args   = ['tab' => 'relatorios', 'report' => $report, 'start_date' => $start, 'end_date' => $end];
@@ -468,6 +531,60 @@ if ($tab === 'dashboard') {
                 echo "<th class='text-center'>" . (int) $d['total_links'] . "</th>";
                 echo "<th class='text-center'>" . ($d['total_links'] > 0 ? '100,00%' : '') . "</th>";
                 echo "</tr></tfoot></table></div>";
+            }
+            $endSection();
+        } elseif ($report === 5) {
+            // "Chamados por entidade": o gráfico do relatório 61 com entidade
+            // no eixo X. O SVG, o CSS e o tooltip vêm de
+            // PluginServicereportsAnalysts (renderStackedChart/stackedAssets),
+            // e não daqui — os dois relatórios têm de continuar iguais.
+            $d = PluginServicereportsEntityreport::getReport($startDt, $endDt);
+
+            // 1) Capa / dados do relatório
+            echo "<div class='card mb-3'><div class='card-body'>";
+            echo "<h2 class='h4 mb-3'>" . PluginServicereportsEntityreport::title() . "</h2>";
+            echo "<div class='row g-3'>";
+            foreach ([
+                [__('Cliente', 'servicereports'), $d['client'] !== '' ? $d['client'] : '-'],
+                [__('Chamados no período', 'servicereports'), (string) (int) $d['grand']],
+                [__('Entidades com chamado', 'servicereports'), (string) (int) $d['entities']],
+                [__('Período', 'servicereports'), $periodLabel],
+            ] as [$k, $v]) {
+                echo "<div class='col-6 col-md-3'><div class='text-muted text-uppercase' style='font-size:.72rem'>$k</div>"
+                    . "<div class='h4 mb-0'>$v</div></div>";
+            }
+            echo "</div></div></div>";
+
+            // 2) Gráfico
+            $section(PluginServicereportsEntityreport::title(), PluginServicereportsEntityreport::hint());
+            PluginServicereportsAnalysts::renderStackedChart($d, PluginServicereportsEntityreport::title());
+            $endSection();
+
+            // 3) Tabela
+            $section(__('Detalhamento por entidade', 'servicereports'), '');
+            if (empty($d['rows'])) {
+                echo "<div class='alert alert-info'>" . __('Nenhum chamado encontrado no período.', 'servicereports') . "</div>";
+            } else {
+                echo "<div class='table-responsive'><table class='table table-sm table-hover table-bordered sr-cst-table'>";
+                echo "<thead><tr><th>" . __('Entidade', 'servicereports') . "</th>";
+                foreach ($d['keys'] as $k) {
+                    echo "<th class='text-center'><span class='sr-cst-dot' style='background:"
+                        . $d['colors'][$k] . "'></span>" . $d['labels'][$k] . "</th>";
+                }
+                echo "<th class='text-center'>" . __('Total', 'servicereports') . "</th></tr></thead><tbody>";
+                foreach ($d['rows'] as $row) {
+                    echo "<tr><td>" . $row['fullname'] . "</td>";
+                    foreach ($d['keys'] as $k) {
+                        $n = (int) ($row['counts'][$k] ?? 0);
+                        echo "<td class='text-center" . ($n > 0 ? '' : ' sr-cst-zero') . "'>$n</td>";
+                    }
+                    echo "<td class='text-center'><strong>" . (int) $row['total'] . "</strong></td></tr>";
+                }
+                echo "</tbody><tfoot><tr><th>" . __('Total', 'servicereports') . "</th>";
+                foreach ($d['keys'] as $k) {
+                    echo "<th class='text-center'>" . (int) ($d['totals'][$k] ?? 0) . "</th>";
+                }
+                echo "<th class='text-center'>" . (int) $d['grand'] . "</th></tr></tfoot></table></div>";
             }
             $endSection();
         } else {

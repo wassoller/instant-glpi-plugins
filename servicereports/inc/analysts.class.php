@@ -660,14 +660,108 @@ class PluginServicereportsAnalysts
      * então basta passar a saída de `getStatusByTechnician()` ou de
      * `getTypeByTechnician()`.
      *
-     * Cada segmento carrega os números em `data-*`; um tooltip minúsculo em JS
-     * (emitido pela tela, uma vez para todos os gráficos) mostra
-     * técnico/série/quantidade ao passar o mouse. O SVG rola na horizontal
-     * quando há muitos técnicos.
+     * Cada segmento carrega os números em `data-*`; o CSS e o tooltip saem do
+     * `stackedAssets()` (uma vez por página, para todos os gráficos). O SVG
+     * rola na horizontal quando há muitas colunas.
      *
      * @param array  $data  saída de getStatusByTechnician()/getTypeByTechnician()
      * @param string $aria  rótulo acessível do gráfico
      */
+    /**
+     * CSS e tooltip do gráfico empilhado — emitidos **uma vez por página**,
+     * como o `PluginServicereportsChart::assets()`. Ficam aqui (e não na tela)
+     * porque o gráfico é usado em duas telas: Analistas › Relatórios (61) e
+     * Central de serviços › Relatórios ("Chamados por entidade").
+     *
+     * O tooltip é **um só** para todos os gráficos da página e escuta no
+     * `document` (delegação): assim não depende de os `.sr-cst-wrap` já
+     * existirem quando o script é emitido, nem de quantos são.
+     */
+    public static function stackedAssets(): void
+    {
+        static $done = false;
+        if ($done) {
+            return;
+        }
+        $done = true;
+
+        echo "<style>
+            .sr-cst-legend { display:flex; flex-wrap:wrap; gap:.25rem 1rem; justify-content:flex-end;
+                             font-size:.8rem; margin-bottom:.25rem; }
+            .sr-cst-key { display:inline-flex; align-items:center; gap:.35rem; color:var(--tblr-secondary,#626976); }
+            .sr-cst-key i { width:11px; height:11px; border-radius:50%; display:inline-block; }
+            .sr-cst-wrap { overflow-x:auto; padding-bottom:.5rem; }
+            .sr-cst-grid { stroke:var(--tblr-border-color,#e6e7e9); stroke-width:1; }
+            .sr-cst-base { stroke:var(--tblr-body-color,#232b31); stroke-width:1.5; }
+            .sr-cst-axis { font-size:11px; fill:var(--tblr-secondary,#626976); }
+            .sr-cst-name { font-size:11px; fill:var(--tblr-body-color,#232b31); }
+            .sr-cst-total { font-size:11px; font-weight:600; fill:var(--tblr-secondary,#626976); }
+            .sr-cst-seg { cursor:default; }
+            .sr-cst-seg:hover { opacity:.78; }
+            .sr-cst-tip { position:fixed; z-index:1080; display:none; pointer-events:none;
+                          background:#1f2933; color:#fff; border-radius:4px; padding:.4rem .6rem;
+                          font-size:.78rem; line-height:1.35; box-shadow:0 2px 8px rgba(0,0,0,.25); }
+            .sr-cst-tip b { font-weight:600; }
+            .sr-cst-table th, .sr-cst-table td { white-space:nowrap; }
+            .sr-cst-table td.sr-cst-zero { color:var(--tblr-secondary,#909296); }
+            .sr-cst-dot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:.3rem; }
+        </style>";
+
+        // Conteúdo montado com `textContent`: os data-* trazem nome de usuário
+        // e de entidade, e `innerHTML` aqui seria convite a XSS.
+        $totalWord = __('Total', 'servicereports');
+        echo Html::scriptBlock(<<<JS
+(function () {
+    var tip = document.createElement('div');
+    tip.className = 'sr-cst-tip';
+    document.body.appendChild(tip);
+
+    function seg(e) {
+        var el = e.target;
+        return (el && el.classList && el.classList.contains('sr-cst-seg')) ? el : null;
+    }
+
+    function fill(el) {
+        tip.textContent = '';
+        var head = document.createElement('div');
+        head.appendChild(document.createElement('b')).textContent = el.getAttribute('data-tech');
+        var line = document.createElement('div');
+        line.textContent = el.getAttribute('data-series') + ': ' + el.getAttribute('data-n')
+            + ' (' + el.getAttribute('data-pct') + '%)';
+        var tot = document.createElement('div');
+        tot.textContent = '{$totalWord}: ' + el.getAttribute('data-total');
+        tip.appendChild(head);
+        tip.appendChild(line);
+        tip.appendChild(tot);
+    }
+
+    // Posicionar já no mouseover: só no mousemove o tooltip apareceria no
+    // canto da página se o ponteiro entrasse na barra sem se mover depois.
+    function place(e) {
+        var x = e.clientX + 14, y = e.clientY + 14;
+        if (x + tip.offsetWidth > window.innerWidth) { x = e.clientX - tip.offsetWidth - 14; }
+        if (y + tip.offsetHeight > window.innerHeight) { y = e.clientY - tip.offsetHeight - 14; }
+        tip.style.left = x + 'px';
+        tip.style.top = y + 'px';
+    }
+
+    document.addEventListener('mouseover', function (e) {
+        var el = seg(e);
+        if (!el) { return; }
+        fill(el);
+        tip.style.display = 'block';
+        place(e);
+    });
+    document.addEventListener('mousemove', function (e) {
+        if (tip.style.display === 'block') { place(e); }
+    });
+    document.addEventListener('mouseout', function (e) {
+        if (seg(e)) { tip.style.display = 'none'; }
+    });
+})();
+JS);
+    }
+
     public static function renderStackedChart(array $data, string $aria): void
     {
         $rows = $data['rows'];
@@ -675,6 +769,7 @@ class PluginServicereportsAnalysts
             echo "<div class='alert alert-info'>" . __('Nenhum chamado encontrado no período.', 'servicereports') . "</div>";
             return;
         }
+        self::stackedAssets();
 
         $keys   = $data['keys'];
         $colors = $data['colors'];

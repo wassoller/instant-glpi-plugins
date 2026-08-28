@@ -4,6 +4,33 @@ Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/).
 Alvo: **GLPI 10.0.x** (validado em 10.0.26). A versão para GLPI 11 tem changelog
 próprio no repositório `instant-glpi11-plugins`.
 
+## [0.5.4] — 2026-08-28 (não lançado)
+
+Segundo relatório novo na Central de serviços, reaproveitando o gráfico do 61. Sem
+mudança de schema.
+
+### Adicionado
+- **5 — "Chamados por entidade"** (Gerência › Relatórios › Central de serviços ›
+  Relatórios): capa, o **gráfico de barras empilhadas do relatório 61 com entidade no eixo
+  X** (modelo mandado pela Instant) e a tabela entidade × status, com CSV e PDF.
+  - **Todos os chamados, em qualquer status**, pela **data de abertura**.
+  - **Sem soma na árvore**: cada chamado conta uma vez, na entidade em que foi aberto —
+    a soma das barras é o total de chamados do período.
+  - Só entidades **com chamado** no período, ordenadas pelo **completename**; eixo com o
+    nome curto, tabela com o completo.
+- `inc/entityreport.class.php` (dados) e `inc/entityreportpdf.class.php` (PDF).
+
+### Alterado
+- **`PluginServicereportsAnalysts::stackedAssets()`**: o CSS e o tooltip do gráfico
+  empilhado saíram da tela do relatório 61 e viraram assets emitidos **uma vez por
+  página** pelo `renderStackedChart()` — agora são duas telas usando o mesmo gráfico. O
+  tooltip passou a escutar no `document` (delegação), então não depende de quantos
+  gráficos há na página nem da ordem em que o script é emitido.
+- **`PluginServicereportsStatustechpdf` virou base reutilizável**: o que era específico do
+  relatório 61 está em propriedades (`$metaLabel`, `$metaValue`, `$reportName`,
+  `$subtitle`, `$firstCol`, `$rowLabelKey`), os métodos de desenho são `protected` e as
+  constantes deixaram de ser `private` (com `private` a subclasse não as enxerga).
+
 ## [0.5.3] — 2026-08-28 (não lançado)
 
 Relatório novo na Central de serviços. Sem mudança de schema.

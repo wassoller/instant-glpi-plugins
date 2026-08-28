@@ -4,6 +4,36 @@ Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/).
 Alvo: **GLPI 10.0.x** (validado em 10.0.26). A versão para GLPI 11 tem changelog
 próprio no repositório `instant-glpi11-plugins`.
 
+## [0.5.2] — 2026-08-28 (não lançado)
+
+Segundo gráfico no relatório 61 (Analistas › Relatórios). Sem mudança de schema.
+
+### Adicionado
+- **"Chamados por tipo e técnico"** no **relatório 61 — "Chamados por Status e Técnico"**:
+  um segundo gráfico de barras empilhadas (o mesmo estilo do de status) com a tabela dos
+  mesmos números, quebrando os chamados do período em **Incidente × Requisição** por
+  técnico. Sai na tela, no CSV (segunda seção, separada por linha em branco) e no PDF
+  (**folha própria**, gráfico + tabela, depois da seção de status).
+  - São os **mesmos chamados** do gráfico de status — mesmo recorte (data de abertura),
+    mesmo vínculo (técnico **atribuído**), mesmos status —, então o total por técnico e o
+    total geral batem entre os dois blocos.
+  - Cores **NAVY/STEEL**, as mesmas de Incidente e Requisição no "Relatório de atualização
+    - Cliente", para o cliente reconhecer os dois tipos pela mesma cor em todo relatório.
+
+### Alterado
+- `getStatusByTechnician()` passou a ser uma casca de `countByTechnician()`, que aceita a
+  coluna de `glpi_tickets` que vira a pilha (`status`/`type`) e devolve
+  `keys`/`legend`/`labels`/`colors` junto dos números; `getTypeByTechnician()` é a outra
+  casca. `renderStatusChart()` virou **`renderStackedChart($data, $aria)`** e desenha
+  qualquer uma das duas quebras a partir desse mesmo array (o atributo `data-status` dos
+  segmentos virou `data-series`, e o tooltip agora se prende a **todos** os
+  `.sr-cst-wrap` da página, não só ao primeiro).
+- `PluginServicereportsStatustechpdf`: larguras da tabela calculadas por
+  `cols($n)` (6 status de 29mm ou 2 tipos de 87mm, sempre somando 277mm), legenda,
+  gráfico e tabela genéricos, e **título de seção no cabeçalho da folha** (o rodapé
+  continua com o nome do relatório: o TCPDF chama o `Footer` da folha anterior *dentro*
+  do `AddPage`, depois de o título novo já ter sido trocado).
+
 ## [0.5.1] — 2026-08-27 (não lançado)
 
 Ajustes do "Relatório de atualização - Cliente" depois da revisão da Instant, e a

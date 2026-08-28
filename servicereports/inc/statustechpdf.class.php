@@ -2,6 +2,11 @@
 /**
  * Relatório 61 — "Chamados por Status e Técnico" em PDF (TCPDF), A4 paisagem.
  *
+ * São **duas seções**, uma por folha: chamados por status e técnico e chamados
+ * por tipo (Incidente × Requisição) e técnico. Os dois usam o mesmo desenho —
+ * a pilha, as cores e os rótulos vêm do próprio array
+ * (`keys`/`legend`/`labels`/`colors`), como na tela.
+ *
  * Mesmo motivo do extrato financeiro (ver extratopdf.class.php): PDF de
  * verdade, e não a impressão do navegador — aqui o gráfico é desenhado com
  * primitivas do TCPDF (`Rect`/`Line`/`Text` girado), o cabeçalho e o rodapé se
@@ -20,8 +25,21 @@ class PluginServicereportsStatustechpdf extends TCPDF
     /** Largura útil da folha (A4 paisagem, margens de 10mm). */
     private const W = 277.0;
 
-    /** Larguras da tabela: Técnico + 6 status + Total (soma = W). */
-    private const COLS = [72.0, 29.0, 29.0, 29.0, 29.0, 29.0, 29.0, 31.0];
+    /** Largura da 1ª coluna (Técnico) e da última (Total) da tabela. */
+    private const COL_NAME  = 72.0;
+    private const COL_TOTAL = 31.0;
+
+    /**
+     * Larguras da tabela: Técnico + $n colunas iguais + Total (soma = W).
+     * São 6 status (29mm cada) ou 2 tipos (87mm cada).
+     *
+     * @return array<int,float>
+     */
+    private static function cols(int $n): array
+    {
+        $w = (self::W - self::COL_NAME - self::COL_TOTAL) / max(1, $n);
+        return array_merge([self::COL_NAME], array_fill(0, $n, $w), [self::COL_TOTAL]);
+    }
 
     // Paleta do layout "Institucional" (igual à do extrato).
     private const C_INK    = [22, 32, 42];
@@ -36,6 +54,8 @@ class PluginServicereportsStatustechpdf extends TCPDF
     private string $end   = '';
     private string $techLabel = '';
     private string $printedBy = '';
+    /** Título da seção em curso — vai no cabeçalho da folha (muda por seção). */
+    private string $section = '';
 
     public function __construct(string $start, string $end, string $techLabel)
     {
@@ -74,7 +94,7 @@ class PluginServicereportsStatustechpdf extends TCPDF
         $this->SetXY($x, $y);
         $this->SetTextColor(...self::C_INK);
         $this->SetFont('helvetica', 'B', 14);
-        $this->Cell(120, 6, __('Chamados por status e técnico', 'servicereports'), 0, 2, 'L');
+        $this->Cell(120, 6, $this->section, 0, 2, 'L');
         $this->SetFont('helvetica', '', 7.5);
         $this->SetTextColor(...self::C_SOFT);
         $this->Cell(120, 4, __('Desempenho de analistas', 'servicereports'), 0, 0, 'L');
@@ -111,7 +131,11 @@ class PluginServicereportsStatustechpdf extends TCPDF
         $this->SetY(-11);
         $this->SetFont('helvetica', '', 6.5);
         $this->SetTextColor(...self::C_FAINT);
-        $this->Cell(self::W / 2, 5, __('Chamados por status e técnico', 'servicereports'), 0, 0, 'L');
+        // Nome do relatório (o do seletor), **não** o da seção: o TCPDF chama o
+        // Footer da folha anterior dentro do AddPage, ou seja depois de o
+        // título da seção nova já ter sido trocado — a folha do status sairia
+        // com o rodapé do tipo.
+        $this->Cell(self::W / 2, 5, __('Chamados por Status e Técnico', 'servicereports'), 0, 0, 'L');
         $this->Cell(
             self::W / 2,
             5,
@@ -134,16 +158,16 @@ class PluginServicereportsStatustechpdf extends TCPDF
     //  Corpo
     // =====================================================================
 
-    /** Legenda dos status, na ordem inversa da pilha (Fechado primeiro). */
-    private function drawLegend(array $labels): void
+    /** Legenda da pilha, na ordem que o relatório definiu (`legend`). */
+    private function drawLegend(array $data): void
     {
         $y = $this->GetY();
         $x = 10.0;
         $this->SetFont('helvetica', '', 7);
-        foreach (array_reverse(PluginServicereportsAnalysts::STATUS_ORDER) as $st) {
-            $text = self::plain($labels[$st]);
+        foreach ($data['legend'] as $st) {
+            $text = self::plain($data['labels'][$st]);
             $w    = $this->GetStringWidth($text) + 10;
-            $this->SetFillColor(...PluginServicereportsAnalysts::rgb(PluginServicereportsAnalysts::STATUS_COLORS[$st]));
+            $this->SetFillColor(...PluginServicereportsAnalysts::rgb($data['colors'][$st]));
             $this->Rect($x, $y + 1.2, 3.2, 3.2, 'F');
             $this->SetTextColor(...self::C_SOFT);
             $this->SetXY($x + 4.5, $y);
@@ -154,9 +178,9 @@ class PluginServicereportsStatustechpdf extends TCPDF
     }
 
     /**
-     * Gráfico de barras empilhadas.
+     * Gráfico de barras empilhadas (mesmo desenho para as duas seções).
      *
-     * @param array $data saída de PluginServicereportsAnalysts::getStatusByTechnician()
+     * @param array $data saída de getStatusByTechnician()/getTypeByTechnician()
      */
     private function drawChart(array $data, float $plotH): void
     {
@@ -193,14 +217,14 @@ class PluginServicereportsStatustechpdf extends TCPDF
         foreach ($rows as $row) {
             $bx = $x0 + $i * $slot + ($slot - $barW) / 2;
             $by = $base;
-            foreach (PluginServicereportsAnalysts::STATUS_ORDER as $st) {
+            foreach ($data['keys'] as $st) {
                 $c = (int) ($row['counts'][$st] ?? 0);
                 if ($c <= 0) {
                     continue;
                 }
                 $segH = ($c / $top) * $plotH;
                 $by  -= $segH;
-                $this->SetFillColor(...PluginServicereportsAnalysts::rgb(PluginServicereportsAnalysts::STATUS_COLORS[$st]));
+                $this->SetFillColor(...PluginServicereportsAnalysts::rgb($data['colors'][$st]));
                 $this->Rect($bx, $by, $barW, $segH, 'F');
             }
 
@@ -242,25 +266,26 @@ class PluginServicereportsStatustechpdf extends TCPDF
      * "Em atendimento (atribuído)" não cabe numa linha de 29mm — e o `Cell`
      * do TCPDF não quebra: transborda por cima da coluna vizinha.
      */
-    private function drawTableHead(array $labels): void
+    private function drawTableHead(array $data): void
     {
-        $h = self::HEAD_H;
-        $y = $this->GetY();
-        $x = 10.0;
+        $cols = self::cols(count($data['keys']));
+        $h    = self::HEAD_H;
+        $y    = $this->GetY();
+        $x    = 10.0;
         $this->SetFillColor(...self::C_HEAD);
         $this->Rect($x, $y, self::W, $h, 'F');
         $this->SetTextColor(255, 255, 255);
         $this->SetFont('helvetica', 'B', 6);
 
         $cells = [__('Técnico', 'servicereports')];
-        foreach (PluginServicereportsAnalysts::STATUS_ORDER as $st) {
-            $cells[] = $labels[$st];
+        foreach ($data['keys'] as $k) {
+            $cells[] = $data['labels'][$k];
         }
         $cells[] = __('Total', 'servicereports');
 
         foreach ($cells as $k => $text) {
             $this->MultiCell(
-                self::COLS[$k],
+                $cols[$k],
                 $h,
                 self::upper(self::plain((string) $text)),
                 0,
@@ -276,15 +301,16 @@ class PluginServicereportsStatustechpdf extends TCPDF
                 $h,
                 'M'
             );
-            $x += self::COLS[$k];
+            $x += $cols[$k];
         }
         $this->SetXY(10, $y + $h);
     }
 
-    /** Tabela técnico × status, com quebra de página e cabeçalho repetido. */
+    /** Tabela técnico × pilha, com quebra de página e cabeçalho repetido. */
     private function drawTable(array $data): void
     {
-        $labels = $data['statuses'];
+        $cols = self::cols(count($data['keys']));
+        $last = count($cols) - 1;
 
         // Evita a tabela nascer no pé da folha e derramar duas linhas na
         // seguinte: se ela não cabe aqui mas cabe inteira numa folha nova,
@@ -301,13 +327,13 @@ class PluginServicereportsStatustechpdf extends TCPDF
             $this->AddPage();
         }
 
-        $this->drawTableHead($labels);
+        $this->drawTableHead($data);
 
         $zebra = false;
         foreach ($data['rows'] as $row) {
             if ($this->GetY() + $h > $this->getPageHeight() - 20) {
                 $this->AddPage();
-                $this->drawTableHead($labels);
+                $this->drawTableHead($data);
                 $zebra = false;
             }
             $y = $this->GetY();
@@ -321,22 +347,22 @@ class PluginServicereportsStatustechpdf extends TCPDF
             $this->SetFont('helvetica', '', 7);
             $this->SetTextColor(...self::C_INK);
             $this->SetXY($x, $y);
-            $this->Cell(self::COLS[0], $h, self::shorten(self::plain((string) $row['name']), 52), 0, 0, 'L');
-            $x += self::COLS[0];
+            $this->Cell($cols[0], $h, self::shorten(self::plain((string) $row['name']), 52), 0, 0, 'L');
+            $x += $cols[0];
 
             $k = 1;
-            foreach (PluginServicereportsAnalysts::STATUS_ORDER as $st) {
+            foreach ($data['keys'] as $st) {
                 $c = (int) ($row['counts'][$st] ?? 0);
                 $this->SetTextColor(...($c > 0 ? self::C_INK : self::C_FAINT));
                 $this->SetXY($x, $y);
-                $this->Cell(self::COLS[$k], $h, (string) $c, 0, 0, 'C');
-                $x += self::COLS[$k];
+                $this->Cell($cols[$k], $h, (string) $c, 0, 0, 'C');
+                $x += $cols[$k];
                 $k++;
             }
             $this->SetFont('helvetica', 'B', 7);
             $this->SetTextColor(...self::C_ACCENT);
             $this->SetXY($x, $y);
-            $this->Cell(self::COLS[7], $h, (string) (int) $row['total'], 0, 0, 'C');
+            $this->Cell($cols[$last], $h, (string) (int) $row['total'], 0, 0, 'C');
 
             $this->SetDrawColor(...self::C_LINE);
             $this->Line(10, $y + $h, 10 + self::W, $y + $h);
@@ -346,7 +372,7 @@ class PluginServicereportsStatustechpdf extends TCPDF
         // Rodapé de totais.
         if ($this->GetY() + 8 > $this->getPageHeight() - 20) {
             $this->AddPage();
-            $this->drawTableHead($labels);
+            $this->drawTableHead($data);
         }
         $y = $this->GetY();
         $x = 10.0;
@@ -360,18 +386,18 @@ class PluginServicereportsStatustechpdf extends TCPDF
         $this->SetFont('helvetica', 'B', 7);
         $this->SetTextColor(...self::C_INK);
         $this->SetXY($x, $y);
-        $this->Cell(self::COLS[0], 7.5, self::upper(__('Total', 'servicereports')), 0, 0, 'L');
-        $x += self::COLS[0];
+        $this->Cell($cols[0], 7.5, self::upper(__('Total', 'servicereports')), 0, 0, 'L');
+        $x += $cols[0];
         $k = 1;
-        foreach (PluginServicereportsAnalysts::STATUS_ORDER as $st) {
+        foreach ($data['keys'] as $st) {
             $this->SetXY($x, $y);
-            $this->Cell(self::COLS[$k], 7.5, (string) (int) ($data['totals'][$st] ?? 0), 0, 0, 'C');
-            $x += self::COLS[$k];
+            $this->Cell($cols[$k], 7.5, (string) (int) ($data['totals'][$st] ?? 0), 0, 0, 'C');
+            $x += $cols[$k];
             $k++;
         }
         $this->SetTextColor(...self::C_ACCENT);
         $this->SetXY($x, $y);
-        $this->Cell(self::COLS[7], 7.5, (string) (int) $data['grand'], 0, 0, 'C');
+        $this->Cell($cols[$last], 7.5, (string) (int) $data['grand'], 0, 0, 'C');
         $this->SetXY(10, $y + 9);
     }
 
@@ -414,13 +440,48 @@ class PluginServicereportsStatustechpdf extends TCPDF
     // =====================================================================
 
     /**
-     * Monta o PDF (gráfico na 1ª folha + tabela) e devolve os bytes.
+     * Uma seção: linha de resumo, legenda, gráfico e tabela.
      *
-     * @param array $data saída de PluginServicereportsAnalysts::getStatusByTechnician()
+     * @param array  $data    saída de getStatusByTechnician()/getTypeByTechnician()
+     * @param string $summary linha de resumo impressa acima da legenda
      */
-    public static function build(array $data, string $start, string $end, string $techLabel): string
+    private function drawSection(array $data, string $summary): void
+    {
+        $this->SetFont('helvetica', '', 8);
+        $this->SetTextColor(...self::C_SOFT);
+        $this->Cell(self::W, 5, $summary, 0, 1, 'L');
+
+        $this->drawLegend($data);
+
+        // Altura do gráfico: se a tabela cabe embaixo dele na mesma folha, o
+        // gráfico fica no tamanho padrão; se não cabe (ela vai para a folha
+        // seguinte de qualquer forma), ele ocupa a folha toda em vez de deixar
+        // meia página em branco.
+        $usable  = $this->getPageHeight() - 30 - 20;            // margens sup./inf.
+        $labelsH = 26.0;                                        // rótulos girados
+        $tableH  = self::HEAD_H + 6.0 * count($data['rows']) + 8.0;
+        $used    = 5.0 + 7.0 + $labelsH;                        // resumo + legenda
+        $plotH   = ($used + 72.0 + $tableH <= $usable) ? 72.0 : max(72.0, $usable - $used);
+
+        $this->drawChart($data, $plotH);
+        $this->drawTable($data);
+    }
+
+    /**
+     * Monta o PDF e devolve os bytes: **uma seção por folha** — chamados por
+     * status e técnico na 1ª, chamados por tipo (Incidente × Requisição) e
+     * técnico na seguinte. Cada seção leva gráfico + tabela, e a tabela
+     * continua quebrando para a folha seguinte quando há muitos técnicos.
+     *
+     * @param array $data     saída de PluginServicereportsAnalysts::getStatusByTechnician()
+     * @param array $typeData saída de PluginServicereportsAnalysts::getTypeByTechnician()
+     */
+    public static function build(array $data, array $typeData, string $start, string $end, string $techLabel): string
     {
         $pdf = new self($start, $end, self::plain($techLabel));
+        // O título da seção vai no cabeçalho da folha e tem de estar definido
+        // ANTES do AddPage (é o AddPage que dispara o Header do TCPDF).
+        $pdf->section = __('Chamados por status e técnico', 'servicereports');
         $pdf->AddPage();
 
         if (empty($data['rows'])) {
@@ -430,36 +491,24 @@ class PluginServicereportsStatustechpdf extends TCPDF
             return $pdf->Output('', 'S');
         }
 
-        // Linha de resumo.
-        $pdf->SetFont('helvetica', '', 8);
-        $pdf->SetTextColor(...self::C_SOFT);
-        $pdf->Cell(
-            self::W,
-            5,
-            sprintf(
-                __('%1$s · %2$s · contagem pelo técnico atribuído, pela data de abertura', 'servicereports'),
-                sprintf(_n('%d chamado', '%d chamados', (int) $data['grand'], 'servicereports'), (int) $data['grand']),
-                sprintf(_n('%d técnico', '%d técnicos', count($data['rows']), 'servicereports'), count($data['rows']))
-            ),
-            0,
-            1,
-            'L'
-        );
+        $chamados = sprintf(_n('%d chamado', '%d chamados', (int) $data['grand'], 'servicereports'), (int) $data['grand']);
+        $tecnicos = sprintf(_n('%d técnico', '%d técnicos', count($data['rows']), 'servicereports'), count($data['rows']));
 
-        $pdf->drawLegend($data['statuses']);
+        $pdf->drawSection($data, sprintf(
+            __('%1$s · %2$s · contagem pelo técnico atribuído, pela data de abertura', 'servicereports'),
+            $chamados,
+            $tecnicos
+        ));
 
-        // Altura do gráfico: se a tabela cabe embaixo dele na mesma folha, o
-        // gráfico fica no tamanho padrão; se não cabe (ela vai para a folha
-        // seguinte de qualquer forma), ele ocupa a folha toda em vez de deixar
-        // meia página em branco.
-        $usable  = $pdf->getPageHeight() - 30 - 20;            // margens sup./inf.
-        $labelsH = 26.0;                                       // rótulos girados
-        $tableH  = self::HEAD_H + 6.0 * count($data['rows']) + 8.0;
-        $used    = 5.0 + 7.0 + $labelsH;                        // resumo + legenda
-        $plotH   = ($used + 72.0 + $tableH <= $usable) ? 72.0 : max(72.0, $usable - $used);
-
-        $pdf->drawChart($data, $plotH);
-        $pdf->drawTable($data);
+        // A quebra por tipo sai sempre em folha nova: são os mesmos chamados,
+        // só muda a pilha — por isso os totais das duas seções são iguais.
+        $pdf->section = __('Chamados por tipo e técnico', 'servicereports');
+        $pdf->AddPage();
+        $pdf->drawSection($typeData, sprintf(
+            __('%1$s · %2$s · os mesmos chamados, quebrados em Incidente e Requisição', 'servicereports'),
+            $chamados,
+            $tecnicos
+        ));
 
         return $pdf->Output('', 'S');
     }

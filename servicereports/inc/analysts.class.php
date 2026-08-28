@@ -423,6 +423,26 @@ class PluginServicereportsAnalysts
     ];
 
     /**
+     * Tipos de chamado do GLPI no gráfico "por tipo e técnico" (ordem da
+     * pilha, de baixo para cima). São só dois — é o que o campo
+     * `glpi_tickets.type` guarda.
+     */
+    public const TYPE_ORDER = [
+        Ticket::INCIDENT_TYPE,  // Incidente
+        Ticket::DEMAND_TYPE,    // Requisição
+    ];
+
+    /**
+     * Cores dos tipos — as **mesmas** do "Relatório de atualização - Cliente"
+     * (PluginServicereportsChart::NAVY/STEEL), para o cliente reconhecer
+     * Incidente e Requisição pelas mesmas cores em todos os relatórios.
+     */
+    public const TYPE_COLORS = [
+        Ticket::INCIDENT_TYPE => '#2b3a54',
+        Ticket::DEMAND_TYPE   => '#93a9c6',
+    ];
+
+    /**
      * Rótulos dos seis status, na ordem da pilha. Vêm do core
      * (`Ticket::getAllStatusArray()`), então acompanham o idioma do GLPI.
      *
@@ -438,6 +458,21 @@ class PluginServicereportsAnalysts
         return $out;
     }
 
+    /**
+     * Rótulos dos dois tipos, na ordem da pilha. Vêm do core
+     * (`Ticket::getTicketTypeName()`), então acompanham o idioma do GLPI.
+     *
+     * @return array<int,string>
+     */
+    public static function typeLabels(): array
+    {
+        $out = [];
+        foreach (self::TYPE_ORDER as $t) {
+            $out[$t] = (string) Ticket::getTicketTypeName($t);
+        }
+        return $out;
+    }
+
     /** '#rrggbb' → [r,g,b] (o TCPDF pede os componentes separados). */
     public static function rgb(string $hex): array
     {
@@ -446,26 +481,37 @@ class PluginServicereportsAnalysts
     }
 
     /**
-     * Relatório 61 — Chamados por Status e Técnico.
+     * Relatório 61 — contagem de **chamados** por técnico, quebrada por uma
+     * dimensão do chamado (status ou tipo).
      *
-     * Conta **chamados** (não tarefas): o vínculo com o técnico é o ator
-     * *Atribuído* (`glpi_tickets_users` tipo ASSIGN), mesma regra do card
-     * nativo do GLPI de onde veio o modelo. Chamado com dois técnicos
-     * atribuídos conta 1 para **cada um** — por isso a soma das barras pode
-     * passar do número de chamados do período.
+     * O vínculo com o técnico é o ator *Atribuído* (`glpi_tickets_users` tipo
+     * ASSIGN), mesma regra do card nativo do GLPI de onde veio o modelo.
+     * Chamado com dois técnicos atribuídos conta 1 para **cada um** — por isso
+     * a soma das barras pode passar do número de chamados do período.
      *
      * O período recorta pela **data de abertura** (`glpi_tickets.date`) e o
-     * status é o **atual**: a pergunta é "dos chamados abertos no período, em
-     * que status estão e com quem". Não confunda com os relatórios 57/59/60,
-     * que recortam pela data da *tarefa*.
+     * universo de chamados é o mesmo nas duas quebras (mesmo filtro de status),
+     * então os dois gráficos da tela fecham no mesmo total. Não confunda com os
+     * relatórios 57/59/60, que recortam pela data da *tarefa*.
      *
-     * @param int $techId 0 = todos os técnicos com chamados no período
-     * @return array{statuses:array<int,string>,
+     * @param string $field  coluna de `glpi_tickets` que vira a pilha (`status`/`type`)
+     * @param array  $order  valores da coluna, na ordem da pilha (de baixo para cima)
+     * @param array  $legend mesma lista, na ordem em que a legenda deve sair
+     * @return array{keys:array<int,int>, legend:array<int,int>,
+     *               labels:array<int,string>, colors:array<int,string>,
      *               rows:array<int,array{id:int,name:string,counts:array<int,int>,total:int}>,
      *               totals:array<int,int>, grand:int, max:int}
      */
-    public static function getStatusByTechnician(string $start, string $end, int $techId = 0): array
-    {
+    private static function countByTechnician(
+        string $start,
+        string $end,
+        int $techId,
+        string $field,
+        array $order,
+        array $legend,
+        array $labels,
+        array $colors
+    ): array {
         global $DB;
 
         $s     = $DB->escape($start);
@@ -476,15 +522,15 @@ class PluginServicereportsAnalysts
 
         $counts = [];
         foreach ($DB->request(
-            "SELECT tu.users_id tech, glpi_tickets.status, COUNT(DISTINCT glpi_tickets.id) cnt
+            "SELECT tu.users_id tech, glpi_tickets.$field k, COUNT(DISTINCT glpi_tickets.id) cnt
              FROM glpi_tickets_users tu
              INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tu.tickets_id AND glpi_tickets.is_deleted=0
              WHERE tu.type=" . CommonITILActor::ASSIGN . " AND tu.users_id>0
                    AND glpi_tickets.status IN ($in)
                    AND glpi_tickets.date BETWEEN '$s' AND '$e' $ent $extra
-             GROUP BY tu.users_id, glpi_tickets.status"
+             GROUP BY tu.users_id, glpi_tickets.$field"
         ) as $r) {
-            $counts[(int) $r['tech']][(int) $r['status']] = (int) $r['cnt'];
+            $counts[(int) $r['tech']][(int) $r['k']] = (int) $r['cnt'];
         }
 
         // Técnico escolhido no filtro aparece mesmo sem chamados no período
@@ -494,29 +540,86 @@ class PluginServicereportsAnalysts
         }
 
         $rows   = [];
-        $totals = array_fill_keys(self::STATUS_ORDER, 0);
+        $totals = array_fill_keys($order, 0);
         $grand  = 0;
         $max    = 0;
-        foreach ($counts as $tech => $byStatus) {
+        foreach ($counts as $tech => $byKey) {
             $total = 0;
-            foreach (self::STATUS_ORDER as $st) {
-                $n              = (int) ($byStatus[$st] ?? 0);
-                $total         += $n;
-                $totals[$st]   += $n;
+            foreach ($order as $k) {
+                $n            = (int) ($byKey[$k] ?? 0);
+                $total       += $n;
+                $totals[$k]  += $n;
             }
             $grand      += $total;
             $max         = max($max, $total);
-            $rows[$tech] = ['id' => (int) $tech, 'name' => getUserName($tech), 'counts' => $byStatus, 'total' => $total];
+            $rows[$tech] = ['id' => (int) $tech, 'name' => getUserName($tech), 'counts' => $byKey, 'total' => $total];
         }
         uasort($rows, static fn ($a, $b) => strnatcasecmp($a['name'], $b['name']));
 
         return [
-            'statuses' => self::statusLabels(),
-            'rows'     => array_values($rows),
-            'totals'   => $totals,
-            'grand'    => $grand,
-            'max'      => $max,
+            'keys'   => $order,
+            'legend' => $legend,
+            'labels' => $labels,
+            'colors' => $colors,
+            'rows'   => array_values($rows),
+            'totals' => $totals,
+            'grand'  => $grand,
+            'max'    => $max,
         ];
+    }
+
+    /**
+     * Relatório 61, 1º bloco — chamados por **status** e técnico.
+     *
+     * A legenda sai na ordem inversa da pilha (Fechado primeiro), como no
+     * relatório original da Verdana. A chave `statuses` continua exposta
+     * porque a tela e o PDF a usam como mapa de rótulos.
+     *
+     * @param int $techId 0 = todos os técnicos com chamados no período
+     */
+    public static function getStatusByTechnician(string $start, string $end, int $techId = 0): array
+    {
+        $labels = self::statusLabels();
+        $data   = self::countByTechnician(
+            $start,
+            $end,
+            $techId,
+            'status',
+            self::STATUS_ORDER,
+            array_reverse(self::STATUS_ORDER),
+            $labels,
+            self::STATUS_COLORS
+        );
+        $data['statuses'] = $labels;
+        return $data;
+    }
+
+    /**
+     * Relatório 61, 2º bloco — chamados por **tipo** (Incidente × Requisição)
+     * e técnico.
+     *
+     * Mesmos chamados do bloco de status (mesmo recorte, mesmo vínculo com o
+     * técnico atribuído): o total dos dois gráficos é o mesmo, só muda a
+     * quebra. A legenda sai na ordem da pilha (Incidente primeiro), como no
+     * "Relatório de atualização - Cliente".
+     *
+     * @param int $techId 0 = todos os técnicos com chamados no período
+     */
+    public static function getTypeByTechnician(string $start, string $end, int $techId = 0): array
+    {
+        $labels = self::typeLabels();
+        $data   = self::countByTechnician(
+            $start,
+            $end,
+            $techId,
+            'type',
+            self::TYPE_ORDER,
+            self::TYPE_ORDER,
+            $labels,
+            self::TYPE_COLORS
+        );
+        $data['types'] = $labels;
+        return $data;
     }
 
     /**
@@ -552,13 +655,20 @@ class PluginServicereportsAnalysts
     /**
      * Gráfico de barras empilhadas (SVG gerado no PHP — sem biblioteca JS).
      *
-     * Cada segmento carrega os números em `data-*`; um tooltip minúsculo em JS
-     * (emitido junto) mostra técnico/status/quantidade ao passar o mouse.
-     * O SVG rola na horizontal quando há muitos técnicos.
+     * Serve aos **dois** gráficos do relatório 61 (status e tipo): a pilha, as
+     * cores e os rótulos vêm do próprio `$data` (`keys`/`colors`/`labels`),
+     * então basta passar a saída de `getStatusByTechnician()` ou de
+     * `getTypeByTechnician()`.
      *
-     * @param array $data saída de getStatusByTechnician()
+     * Cada segmento carrega os números em `data-*`; um tooltip minúsculo em JS
+     * (emitido pela tela, uma vez para todos os gráficos) mostra
+     * técnico/série/quantidade ao passar o mouse. O SVG rola na horizontal
+     * quando há muitos técnicos.
+     *
+     * @param array  $data  saída de getStatusByTechnician()/getTypeByTechnician()
+     * @param string $aria  rótulo acessível do gráfico
      */
-    public static function renderStatusChart(array $data): void
+    public static function renderStackedChart(array $data, string $aria): void
     {
         $rows = $data['rows'];
         if (empty($rows)) {
@@ -566,7 +676,9 @@ class PluginServicereportsAnalysts
             return;
         }
 
-        $labels = $data['statuses'];
+        $keys   = $data['keys'];
+        $colors = $data['colors'];
+        $labels = $data['labels'];
         [$top, $step] = self::niceScale((int) $data['max']);
 
         // Geometria (px). O rótulo do técnico sai girado -32°, ancorado no fim,
@@ -585,17 +697,18 @@ class PluginServicereportsAnalysts
         $h     = $padT + $plotH + $padB;
         $base  = $padT + $plotH;
 
-        // Legenda: ordem inversa da pilha (Fechado primeiro), como no original.
+        // Legenda: na ordem definida pelo relatório (status sai invertido,
+        // Fechado primeiro, como no original da Verdana).
         echo "<div class='sr-cst-legend'>";
-        foreach (array_reverse(self::STATUS_ORDER) as $st) {
-            echo "<span class='sr-cst-key'><i style='background:" . self::STATUS_COLORS[$st] . "'></i>"
-                . $labels[$st] . "</span>";
+        foreach ($data['legend'] as $k) {
+            echo "<span class='sr-cst-key'><i style='background:" . $colors[$k] . "'></i>"
+                . $labels[$k] . "</span>";
         }
         echo "</div>";
 
         echo "<div class='sr-cst-wrap'>";
         echo "<svg class='sr-cst' width='$w' height='$h' viewBox='0 0 $w $h' role='img' "
-            . "aria-label='" . __('Chamados por status e técnico', 'servicereports') . "'>";
+            . "aria-label='" . Html::cleanInputText($aria) . "'>";
 
         // Grade + eixo Y.
         for ($v = 0; $v <= $top; $v += $step) {
@@ -613,8 +726,8 @@ class PluginServicereportsAnalysts
             // Nome sem entidades HTML: o GLPI devolve texto escapado e o
             // tooltip lê o atributo já decodificado pelo DOM.
             $plain = html_entity_decode((string) $row['name'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            foreach (self::STATUS_ORDER as $st) {
-                $n = (int) ($row['counts'][$st] ?? 0);
+            foreach ($keys as $k) {
+                $n = (int) ($row['counts'][$k] ?? 0);
                 if ($n <= 0) {
                     continue;
                 }
@@ -622,9 +735,9 @@ class PluginServicereportsAnalysts
                 $y   -= $segH;
                 $pct  = $row['total'] > 0 ? round($n / $row['total'] * 100) : 0;
                 echo "<rect class='sr-cst-seg' x='$x' y='" . round($y, 2) . "' width='$barW' height='" . round($segH, 2) . "'"
-                    . " fill='" . self::STATUS_COLORS[$st] . "'"
+                    . " fill='" . $colors[$k] . "'"
                     . " data-tech='" . Html::cleanInputText($plain) . "'"
-                    . " data-status='" . Html::cleanInputText(html_entity_decode($labels[$st], ENT_QUOTES | ENT_HTML5, 'UTF-8')) . "'"
+                    . " data-series='" . Html::cleanInputText(html_entity_decode($labels[$k], ENT_QUOTES | ENT_HTML5, 'UTF-8')) . "'"
                     . " data-n='$n' data-pct='$pct' data-total='" . (int) $row['total'] . "'></rect>";
             }
             // Total acima da barra.

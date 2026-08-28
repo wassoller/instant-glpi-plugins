@@ -74,28 +74,43 @@ if (($_GET['export'] ?? '') === 'csv' && $tab === 'relatorios' && in_array($repo
         // Última linha: o período solicitado no filtro (mesma informação da tela).
         fputcsv($out, array_map($dec, ['Período do relatório', $periodLabel]), ';', '"', '');
     } elseif ($report === 61) {
-        // Matriz técnico × status: mesma tabela da tela, sem paginação.
-        $d      = PluginServicereportsAnalysts::getStatusByTechnician($startDt, $endDt, $techId);
-        $header = ['Técnico'];
-        foreach (PluginServicereportsAnalysts::STATUS_ORDER as $st) {
-            $header[] = $d['statuses'][$st];
-        }
-        $header[] = 'Total';
-        fputcsv($out, array_map($dec, $header), ';', '"', '');
-        foreach ($d['rows'] as $row) {
-            $line = [$row['name']];
-            foreach (PluginServicereportsAnalysts::STATUS_ORDER as $st) {
-                $line[] = (int) ($row['counts'][$st] ?? 0);
+        // Duas seções, separadas por linha em branco (mesma convenção do CSV do
+        // relatório central de serviços): técnico × status e técnico × tipo.
+        // Nenhuma delas pagina — são as mesmas tabelas da tela.
+        $section = static function (array $d, string $title) use ($out, $dec) {
+            fputcsv($out, [$dec($title)], ';', '"', '');
+            $header = ['Técnico'];
+            foreach ($d['keys'] as $k) {
+                $header[] = $d['labels'][$k];
             }
-            $line[] = (int) $row['total'];
+            $header[] = 'Total';
+            fputcsv($out, array_map($dec, $header), ';', '"', '');
+            foreach ($d['rows'] as $row) {
+                $line = [$row['name']];
+                foreach ($d['keys'] as $k) {
+                    $line[] = (int) ($row['counts'][$k] ?? 0);
+                }
+                $line[] = (int) $row['total'];
+                fputcsv($out, array_map($dec, $line), ';', '"', '');
+            }
+            $line = ['Total'];
+            foreach ($d['keys'] as $k) {
+                $line[] = (int) ($d['totals'][$k] ?? 0);
+            }
+            $line[] = (int) $d['grand'];
             fputcsv($out, array_map($dec, $line), ';', '"', '');
-        }
-        $line = ['Total'];
-        foreach (PluginServicereportsAnalysts::STATUS_ORDER as $st) {
-            $line[] = (int) ($d['totals'][$st] ?? 0);
-        }
-        $line[] = (int) $d['grand'];
-        fputcsv($out, array_map($dec, $line), ';', '"', '');
+        };
+
+        $section(
+            PluginServicereportsAnalysts::getStatusByTechnician($startDt, $endDt, $techId),
+            'Chamados por status e técnico'
+        );
+        fputcsv($out, [''], ';', '"', '');
+        $section(
+            PluginServicereportsAnalysts::getTypeByTechnician($startDt, $endDt, $techId),
+            'Chamados por tipo e técnico'
+        );
+        fputcsv($out, [''], ';', '"', '');
         fputcsv($out, array_map($dec, ['Período do relatório', $periodLabel]), ';', '"', '');
     } else {
         $rows = PluginServicereportsAnalysts::getOutOfHoursReport($startDt, $endDt, $techId, $ticketId);
@@ -124,10 +139,11 @@ if (($_GET['export'] ?? '') === 'csv' && $tab === 'relatorios' && in_array($repo
 // ---------------------------------------------------------------------------
 if ($tab === 'relatorios' && $report === 61 && ($_GET['pdf'] ?? '') === '1') {
     $data      = PluginServicereportsAnalysts::getStatusByTechnician($startDt, $endDt, $techId);
+    $typeData  = PluginServicereportsAnalysts::getTypeByTechnician($startDt, $endDt, $techId);
     $techLabel = $techId > 0 ? getUserName($techId) : __('Todos', 'servicereports');
 
     ob_start();
-    $bytes = PluginServicereportsStatustechpdf::build($data, $start, $end, $techLabel);
+    $bytes = PluginServicereportsStatustechpdf::build($data, $typeData, $start, $end, $techLabel);
     ob_end_clean();
 
     $file = 'chamados_por_status_e_tecnico_' . $start . '_' . $end . '.pdf';
@@ -401,11 +417,15 @@ if ($tab === 'tecnicos') {
         echo "<div class='sr-eva-period mt-2'>" . __('Período do relatório', 'servicereports')
             . ': <strong>' . $periodLabel . '</strong></div>';
     } elseif ($report === 61) {
-        // Chamados por status e técnico: barras empilhadas (SVG gerado no PHP,
-        // sem biblioteca JS) + tabela com os mesmos números. Não pagina — o
-        // gráfico é o relatório; exporta CSV e PDF (paisagem).
-        $data   = PluginServicereportsAnalysts::getStatusByTechnician($startDt, $endDt, $techId);
-        $labels = $data['statuses'];
+        // Dois gráficos de barras empilhadas (SVG gerado no PHP, sem biblioteca
+        // JS), cada um com a tabela dos mesmos números: chamados por STATUS e
+        // técnico e chamados por TIPO (Incidente × Requisição) e técnico. Os
+        // dois blocos contam os MESMOS chamados — só muda a quebra da pilha —,
+        // então o total por técnico bate entre eles. Não pagina (o gráfico é o
+        // relatório); exporta CSV (uma seção por bloco) e PDF (paisagem, uma
+        // página por bloco).
+        $data     = PluginServicereportsAnalysts::getStatusByTechnician($startDt, $endDt, $techId);
+        $typeData = PluginServicereportsAnalysts::getTypeByTechnician($startDt, $endDt, $techId);
 
         echo "<style>
             .sr-cst-legend { display:flex; flex-wrap:wrap; gap:.25rem 1rem; justify-content:flex-end;
@@ -429,6 +449,35 @@ if ($tab === 'tecnicos') {
             .sr-cst-dot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:.3rem; }
         </style>";
 
+        // Tabela técnico × pilha — a mesma para os dois blocos: as colunas saem
+        // de `keys`/`labels`/`colors`, como no gráfico.
+        $renderCstTable = function (array $d) {
+            if (empty($d['rows'])) {
+                return;
+            }
+            echo "<div class='table-responsive'><table class='table table-sm table-hover table-bordered sr-cst-table'>";
+            echo "<thead><tr><th>" . __('Técnico', 'servicereports') . "</th>";
+            foreach ($d['keys'] as $k) {
+                echo "<th class='text-center'><span class='sr-cst-dot' style='background:"
+                    . $d['colors'][$k] . "'></span>" . $d['labels'][$k] . "</th>";
+            }
+            echo "<th class='text-center'>" . __('Total', 'servicereports') . "</th></tr></thead><tbody>";
+            foreach ($d['rows'] as $row) {
+                echo "<tr><td>" . $row['name'] . "</td>";
+                foreach ($d['keys'] as $k) {
+                    $n = (int) ($row['counts'][$k] ?? 0);
+                    echo "<td class='text-center" . ($n > 0 ? '' : ' sr-cst-zero') . "'>$n</td>";
+                }
+                echo "<td class='text-center'><strong>" . (int) $row['total'] . "</strong></td></tr>";
+            }
+            echo "</tbody><tfoot><tr><th>" . __('Total', 'servicereports') . "</th>";
+            foreach ($d['keys'] as $k) {
+                echo "<th class='text-center'>" . (int) ($d['totals'][$k] ?? 0) . "</th>";
+            }
+            echo "<th class='text-center'>" . (int) $d['grand'] . "</th></tr></tfoot></table></div>";
+        };
+
+        // --- Bloco 1: por status ---
         echo "<h3 class='mb-2'>" . __('Chamados por status e técnico', 'servicereports') . "</h3>";
         echo "<div class='text-muted mb-3' style='font-size:0.85em'>"
             . __('Conta CHAMADOS (não tarefas) pelo técnico ATRIBUÍDO, recortados pela data de abertura, '
@@ -442,42 +491,35 @@ if ($tab === 'tecnicos') {
         echo "</div>";
 
         echo "<div class='card mb-3'><div class='card-body'>";
-        PluginServicereportsAnalysts::renderStatusChart($data);
+        PluginServicereportsAnalysts::renderStackedChart($data, __('Chamados por status e técnico', 'servicereports'));
         echo "</div></div>";
 
-        if (!empty($data['rows'])) {
-            echo "<div class='table-responsive'><table class='table table-sm table-hover table-bordered sr-cst-table'>";
-            echo "<thead><tr><th>" . __('Técnico', 'servicereports') . "</th>";
-            foreach (PluginServicereportsAnalysts::STATUS_ORDER as $st) {
-                echo "<th class='text-center'><span class='sr-cst-dot' style='background:"
-                    . PluginServicereportsAnalysts::STATUS_COLORS[$st] . "'></span>" . $labels[$st] . "</th>";
-            }
-            echo "<th class='text-center'>" . __('Total', 'servicereports') . "</th></tr></thead><tbody>";
-            foreach ($data['rows'] as $row) {
-                echo "<tr><td>" . $row['name'] . "</td>";
-                foreach (PluginServicereportsAnalysts::STATUS_ORDER as $st) {
-                    $n = (int) ($row['counts'][$st] ?? 0);
-                    echo "<td class='text-center" . ($n > 0 ? '' : ' sr-cst-zero') . "'>$n</td>";
-                }
-                echo "<td class='text-center'><strong>" . (int) $row['total'] . "</strong></td></tr>";
-            }
-            echo "</tbody><tfoot><tr><th>" . __('Total', 'servicereports') . "</th>";
-            foreach (PluginServicereportsAnalysts::STATUS_ORDER as $st) {
-                echo "<th class='text-center'>" . (int) ($data['totals'][$st] ?? 0) . "</th>";
-            }
-            echo "<th class='text-center'>" . (int) $data['grand'] . "</th></tr></tfoot></table></div>";
-        }
+        $renderCstTable($data);
+
+        // --- Bloco 2: por tipo (Incidente × Requisição) ---
+        echo "<h3 class='mb-2 mt-4'>" . __('Chamados por tipo e técnico', 'servicereports') . "</h3>";
+        echo "<div class='text-muted mb-3' style='font-size:0.85em'>"
+            . __('Os MESMOS chamados do gráfico acima, quebrados por tipo — Incidente e Requisição são os '
+               . 'dois tipos de chamado do GLPI. O total de cada técnico é igual ao do gráfico de status.', 'servicereports')
+            . "</div>";
+
+        echo "<div class='card mb-3'><div class='card-body'>";
+        PluginServicereportsAnalysts::renderStackedChart($typeData, __('Chamados por tipo e técnico', 'servicereports'));
+        echo "</div></div>";
+
+        $renderCstTable($typeData);
 
         echo "<div class='sr-cst-period mt-2' style='font-size:0.9em'>" . __('Período do relatório', 'servicereports')
             . ': <strong>' . $periodLabel . '</strong></div>';
 
-        // Tooltip do gráfico: um só elemento, montado com textContent (os nomes
-        // vêm dos data-* já decodificados pelo DOM — nada de innerHTML aqui).
+        // Tooltip dos gráficos: um só elemento para os dois (montado com
+        // textContent — os nomes vêm dos data-* já decodificados pelo DOM;
+        // innerHTML com nome de usuário é convite a XSS).
         $totalWord = __('Total do técnico', 'servicereports');
         echo Html::scriptBlock(<<<JS
 (function () {
-    var wrap = document.querySelector('.sr-cst-wrap');
-    if (!wrap) { return; }
+    var wraps = document.querySelectorAll('.sr-cst-wrap');
+    if (!wraps.length) { return; }
     var tip = document.createElement('div');
     tip.className = 'sr-cst-tip';
     document.body.appendChild(tip);
@@ -487,7 +529,7 @@ if ($tab === 'tecnicos') {
         var head = document.createElement('div');
         head.appendChild(document.createElement('b')).textContent = el.getAttribute('data-tech');
         var line = document.createElement('div');
-        line.textContent = el.getAttribute('data-status') + ': ' + el.getAttribute('data-n')
+        line.textContent = el.getAttribute('data-series') + ': ' + el.getAttribute('data-n')
             + ' (' + el.getAttribute('data-pct') + '%)';
         var tot = document.createElement('div');
         tot.textContent = '{$totalWord}: ' + el.getAttribute('data-total');
@@ -506,18 +548,20 @@ if ($tab === 'tecnicos') {
         tip.style.top = y + 'px';
     }
 
-    wrap.addEventListener('mouseover', function (e) {
-        var el = e.target;
-        if (!el.classList || !el.classList.contains('sr-cst-seg')) { return; }
-        fill(el);
-        tip.style.display = 'block';
-        place(e);
-    });
-    wrap.addEventListener('mousemove', function (e) {
-        if (tip.style.display === 'block') { place(e); }
-    });
-    wrap.addEventListener('mouseout', function (e) {
-        if (e.target.classList && e.target.classList.contains('sr-cst-seg')) { tip.style.display = 'none'; }
+    Array.prototype.forEach.call(wraps, function (wrap) {
+        wrap.addEventListener('mouseover', function (e) {
+            var el = e.target;
+            if (!el.classList || !el.classList.contains('sr-cst-seg')) { return; }
+            fill(el);
+            tip.style.display = 'block';
+            place(e);
+        });
+        wrap.addEventListener('mousemove', function (e) {
+            if (tip.style.display === 'block') { place(e); }
+        });
+        wrap.addEventListener('mouseout', function (e) {
+            if (e.target.classList && e.target.classList.contains('sr-cst-seg')) { tip.style.display = 'none'; }
+        });
     });
 })();
 JS);

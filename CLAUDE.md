@@ -148,20 +148,37 @@ Os plugins já rodam em **produção** no GLPI 10 da Instant
   tiverem horas no período, e aí a coluna fica para não sumir com hora nenhuma e manter
   os totais conferindo. Não pagina; exporta CSV. Ao mexer nele, lembre que a tela usa `position: sticky` (classes
   `sr-eva`) para fixar cabeçalho e coluna do analista.
-- **Relatório 61 — "Chamados por Status e Técnico"** (gráfico de barras empilhadas, id 61)
-  é o único do bloco que **conta chamados, não tarefas**: o vínculo com o técnico é o ator
-  **Atribuído** (`glpi_tickets_users` tipo `ASSIGN`), o recorte do período é a **data de
-  abertura** (`glpi_tickets.date`) e o status é o **atual** — regra do card nativo do GLPI
+- **Relatório 61 — "Chamados por Status e Técnico"** (id 61) é o único do bloco que
+  **conta chamados, não tarefas**: o vínculo com o técnico é o ator **Atribuído**
+  (`glpi_tickets_users` tipo `ASSIGN`), o recorte do período é a **data de abertura**
+  (`glpi_tickets.date`) e o status é o **atual** — regra do card nativo do GLPI
   que a Instant usou de modelo (27/08). Chamado com dois atribuídos conta para **cada um**;
   a soma das barras pode passar o nº de chamados, e o texto de ajuda diz isso. O eixo X
-  traz só os técnicos com chamados no período. O gráfico é **SVG montado no PHP**
-  (`renderStatusChart()`), sem biblioteca — o tooltip é um punhado de JS lendo os `data-*`
-  dos `<rect>` (monte o conteúdo com `textContent`; `innerHTML` com nome de usuário é
-  convite a XSS). Cores e ordem da pilha ficam em `STATUS_ORDER`/`STATUS_COLORS`, usadas
-  **também** pelo PDF — mexeu numa, a outra acompanha.
+  traz só os técnicos com chamados no período.
+  São **dois gráficos de barras empilhadas** com a mesma cara, um embaixo do outro
+  (28/08): por **status** e por **tipo** (Incidente × Requisição). Os dois contam os
+  **mesmos chamados** — mesmo recorte, mesmo vínculo, mesmo filtro de status —, só muda a
+  quebra da pilha, então **os totais têm de bater** entre eles; se pararem de bater, o bug
+  está no `countByTechnician()`. As duas consultas são a mesma:
+  `getStatusByTechnician()`/`getTypeByTechnician()` são cascas de **`countByTechnician()`**,
+  que recebe a coluna de `glpi_tickets` que vira a pilha e devolve
+  `keys`/`legend`/`labels`/`colors` junto dos números — **não** duplique a consulta para
+  criar uma terceira quebra.
+  O gráfico é **SVG montado no PHP** (**`renderStackedChart($data, $aria)`**, genérico:
+  lê a pilha do próprio `$data`), sem biblioteca — o tooltip é um punhado de JS lendo os
+  `data-*` dos `<rect>` (monte o conteúdo com `textContent`; `innerHTML` com nome de
+  usuário é convite a XSS) e se prende a **todos** os `.sr-cst-wrap` da página, não só ao
+  primeiro. Cores e ordem das pilhas ficam em `STATUS_ORDER`/`STATUS_COLORS` e
+  `TYPE_ORDER`/`TYPE_COLORS` (estas últimas são a NAVY/STEEL do "Relatório de atualização
+  - Cliente", de propósito), usadas **também** pelo PDF — mexeu numa, a outra acompanha.
 - **PDF do 61** (`inc/statustechpdf.class.php`, rota `&pdf=1` em `front/analysts.php`):
-  A4 paisagem, gráfico redesenhado com primitivas do TCPDF + tabela. Três armadilhas já
-  pagas: **`SetXY()` com x negativo** no TCPDF quer dizer "a partir da direita" (o rótulo
+  A4 paisagem, **uma seção por folha** (status e depois tipo), cada uma com o gráfico
+  redesenhado com primitivas do TCPDF + tabela. As larguras da tabela saem de `cols($n)`
+  (6 status de 29mm ou 2 tipos de 87mm, sempre somando os 277mm da folha). O **título da
+  seção** vai no cabeçalho e tem de ser trocado **antes** do `AddPage`; o **rodapé** fica
+  com o nome do relatório de propósito — o TCPDF chama o `Footer` da folha anterior
+  *dentro* do `AddPage`, ou seja depois da troca, e a folha do status sairia com o rótulo
+  do tipo. Três armadilhas já pagas: **`SetXY()` com x negativo** no TCPDF quer dizer "a partir da direita" (o rótulo
   girado da 1ª barra sumia — a célula vai de `x=0` até o pé da barra, alinhada à direita);
   **`Cell()` não quebra linha** (o cabeçalho da tabela precisa de `MultiCell`, senão
   "EM ATENDIMENTO (ATRIBUÍDO)" invade a coluna vizinha); e o `ob_start()`/`ob_end_clean()`
@@ -352,7 +369,8 @@ fechamento, layout "Institucional", PDF via TCPDF, remoção do relatório 4), o
 gráfico SVG e o PDF paisagem) e o "Relatório central de serviços" (Central de serviços ›
 Relatórios) já foram portados e validados no GLPI 11.0.8.
 **Pendente de port:** o **"Relatório de atualização - Cliente"** nas duas variantes
-(Central de serviços › Relatórios, ids 2 e 3), de 27/08.
+(Central de serviços › Relatórios, ids 2 e 3), de 27/08, e o segundo gráfico do
+relatório 61 (**"Chamados por tipo e técnico"**, tela + CSV + PDF), de 28/08.
 **Ao mexer na lógica aqui, porte lá na sequência** — divergência entre os dois repos é o
 principal risco do projeto.
 

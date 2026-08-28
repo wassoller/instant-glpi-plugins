@@ -59,7 +59,7 @@ function plugin_version_managedservices()
     return [
         'name'         => 'Serviços Gerenciados',
         'version'      => PLUGIN_MANAGEDSERVICES_VERSION,
-        'author'       => 'Instant Tecnologia',
+        'author'       => 'Lyon Wassoller',
         'license'      => 'GPLv2+',
         'homepage'     => 'https://github.com/wassoller/instant-glpi-plugins',
         'requirements' => [

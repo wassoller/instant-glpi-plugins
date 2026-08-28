@@ -194,11 +194,13 @@ Os plugins já rodam em **produção** no GLPI 10 da Instant
 ## Central de serviços — sub-aba Relatórios
 
 `front/servicecentral.php` tem duas sub-abas: **Dashboard** (os KPIs do mês, que já
-existiam) e **Relatórios**, com **dois** relatórios no seletor:
+existiam) e **Relatórios**, com **quatro** relatórios no seletor:
 **1 — "Relatório central de serviços"**,
-**2 — "Relatório de atualização - Cliente - ANUAL"** e
-**3 — "Relatório de atualização - Cliente - MENSAL"**.
-Todos têm 7 seções na tela, 7 páginas no PDF, CSV e PDF.
+**2 — "Relatório de atualização - Cliente - ANUAL"**,
+**3 — "Relatório de atualização - Cliente - MENSAL"** e
+**4 — "Chamados por grupo"**.
+Os três primeiros têm 7 seções na tela e 7 páginas no PDF; o 4 tem 3 (capa, gráfico e
+tabela). Todos exportam CSV e PDF.
 
 ### Relatório central de serviços (id 1)
 
@@ -267,6 +269,32 @@ chamados por horário.
   A tabela do bucket tem **altura de linha adaptativa** — no MENSAL são até 31 linhas.
 - O eixo X de "Chamados por horário" traz **só as horas com chamado** (as 24 deixariam
   metade do eixo vazio).
+
+### Chamados por grupo (id 4)
+
+Pedido da Instant em 28/08: "em determinado intervalo, os chamados por grupo". Capa,
+gráfico de barras horizontais e tabela (grupo, chamados, % do total) — `inc/groupreport.class.php`
+(dados) e `inc/groupreportpdf.class.php` (PDF, que **estende o `centralpdf`**: mexeu lá,
+lembre que são **quatro** relatórios usando aquele código).
+
+- **Grupo = ator *Atribuído*** (`glpi_groups_tickets` com `type = ASSIGN`), o mesmo campo
+  que aparece no chamado ao lado do técnico. Grupo **requerente** e **observador** não
+  entram — se um dia precisarem, é outra seção, não um filtro a mais nesta.
+- **Período pela data de abertura** (`glpi_tickets.date`), como no relatório 61 e no
+  "aberto" do relatório central; o status não filtra nada.
+- **Chamado com dois grupos conta nos dois**, então a **soma das linhas** pode passar os
+  chamados do período. Por isso a capa mostra os chamados **distintos** e o rodapé da
+  tabela mostra a **soma** — e o **percentual é sobre a soma**, para a coluna fechar em
+  100%. Se alguém reclamar que "o total não bate com a capa", é isso.
+- **"Sem grupo atribuído"** é sempre a **última** linha, fora da ordenação: ordenada junto
+  costuma ser a maior barra e esconde o ranking das filas de verdade.
+- O nome é o **completename** do grupo e **subgrupo não soma no pai** ("Projetos > Redes"
+  é uma linha própria) — vale a fila que está no chamado.
+- Os títulos das duas seções (`chartTitle()`/`tableTitle()`, na classe de dados) são
+  compartilhados por tela e PDF e **não repetem o nome do relatório**: no PDF ele já sai
+  no subtítulo do cabeçalho de toda folha.
+- O `centralpdf` tem `SetAutoPageBreak(false)` (uma seção por folha), então a tabela quebra
+  **na mão** — com muitos grupos ela continua na folha seguinte com o cabeçalho repetido.
 
 ## Relatórios de Gestão financeira — cuidados
 
@@ -370,7 +398,8 @@ gráfico SVG e o PDF paisagem) e o "Relatório central de serviços" (Central de
 Relatórios) já foram portados e validados no GLPI 11.0.8.
 **Pendente de port:** o **"Relatório de atualização - Cliente"** nas duas variantes
 (Central de serviços › Relatórios, ids 2 e 3), de 27/08, e o segundo gráfico do
-relatório 61 (**"Chamados por tipo e técnico"**, tela + CSV + PDF), de 28/08.
+relatório 61 (**"Chamados por tipo e técnico"**, tela + CSV + PDF) e o relatório
+**4 — "Chamados por grupo"** (Central de serviços › Relatórios), os dois de 28/08.
 **Ao mexer na lógica aqui, porte lá na sequência** — divergência entre os dois repos é o
 principal risco do projeto.
 

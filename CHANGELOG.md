@@ -4,6 +4,24 @@ Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/).
 Alvo: **GLPI 10.0.x** (validado em 10.0.26). A versão para GLPI 11 tem changelog
 próprio no repositório `instant-glpi11-plugins`.
 
+## [0.5.3] — 2026-08-28 (não lançado)
+
+Relatório novo na Central de serviços. Sem mudança de schema.
+
+### Adicionado
+- **4 — "Chamados por grupo"** (Gerência › Relatórios › Central de serviços › Relatórios):
+  capa, gráfico de barras horizontais e tabela (grupo, chamados, % do total), com CSV e
+  PDF. Conta os chamados do período pelo **grupo atribuído** (`glpi_groups_tickets` tipo
+  `ASSIGN`) — o mesmo grupo que aparece no chamado ao lado do técnico —, recortados pela
+  **data de abertura**.
+  - Chamado atribuído a dois grupos conta nos dois: a capa mostra os chamados
+    **distintos**, o rodapé da tabela a **soma das linhas**, e o percentual é sobre a
+    soma (a coluna fecha em 100%).
+  - **"Sem grupo atribuído"** sai como última linha, fora da ordenação.
+  - Nome pelo **completename**, sem somar subgrupo no pai.
+- `inc/groupreport.class.php` (dados, texto de ajuda e títulos das seções, compartilhados
+  por tela e PDF) e `inc/groupreportpdf.class.php` (PDF, estendendo o `centralpdf`).
+
 ## [0.5.2] — 2026-08-28 (não lançado)
 
 Segundo gráfico no relatório 61 (Analistas › Relatórios). Sem mudança de schema.

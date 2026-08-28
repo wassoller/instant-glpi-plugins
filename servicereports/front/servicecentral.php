@@ -4,11 +4,12 @@
  *
  * Sub-abas:
  *   - Dashboard   → KPIs do mês corrente (cartões com deep-link para a busca).
- *   - Relatórios  → seletor de relatório + filtro de período. Três relatórios,
- *                   todos com 7 seções, CSV e PDF:
+ *   - Relatórios  → seletor de relatório + filtro de período. Quatro relatórios,
+ *                   todos com CSV e PDF (os três primeiros com 7 seções):
  *                     1 "Relatório central de serviços"
  *                     2 "Relatório de atualização - Cliente - ANUAL"  (por mês)
  *                     3 "Relatório de atualização - Cliente - MENSAL" (por dia)
+ *                     4 "Chamados por grupo" (grupo atribuído; capa, gráfico e tabela)
  *
  * Os relatórios 2 e 3 são a **mesma** implementação com granularidades
  * diferentes (PluginServicereportsUpdatereport::GRAIN_MONTH / GRAIN_DAY).
@@ -155,6 +156,37 @@ if ($tab === 'relatorios' && in_array($report, [2, 3], true) && ($_GET['export']
     exit;
 }
 
+// Relatório 4 — "Chamados por grupo": cabeçalho com os números do período e a
+// tabela grupo × chamados, separados por linha em branco.
+if ($tab === 'relatorios' && $report === 4 && ($_GET['export'] ?? '') === 'csv') {
+    $d = PluginServicereportsGroupreport::getReport($startDt, $endDt);
+
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="chamados_por_grupo_' . $start . '_' . $end . '.csv"');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF"); // BOM p/ acentos no Excel
+    $dec = static fn ($v) => html_entity_decode((string) $v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $put = static function (array $line) use ($out, $dec) {
+        fputcsv($out, array_map($dec, $line), ';', '"', '');
+    };
+
+    $put([PluginServicereportsGroupreport::title()]);
+    $put(['Cliente', $d['client']]);
+    $put(['Período', $periodLabel]);
+    $put(['Chamados no período', (int) $d['total_tickets']]);
+    $put(['Grupos com chamado', (int) $d['groups']]);
+    $put(['Sem grupo atribuído', (int) $d['no_group']]);
+    $put([]);
+
+    $put(['Grupo', 'Chamados', '% do total']);
+    foreach ($d['rows'] as $row) {
+        $put([$row['label'], (int) $row['value'], $row['note']]);
+    }
+    $put(['Total', (int) $d['total_links'], $d['total_links'] > 0 ? '100,00%' : '']);
+    fclose($out);
+    exit;
+}
+
 // ---------------------------------------------------------------------------
 // PDF (TCPDF) — antes de qualquer saída HTML.
 //
@@ -186,6 +218,21 @@ if ($tab === 'relatorios' && in_array($report, [2, 3], true) && ($_GET['pdf'] ??
 
     $file = 'relatorio_de_atualizacao_' . PluginServicereportsUpdatereport::slug($grain)
         . '_' . $start . '_' . $end . '.pdf';
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: inline; filename="' . $file . '"');
+    header('Content-Length: ' . strlen($bytes));
+    echo $bytes;
+    exit;
+}
+
+if ($tab === 'relatorios' && $report === 4 && ($_GET['pdf'] ?? '') === '1') {
+    $d = PluginServicereportsGroupreport::getReport($startDt, $endDt);
+
+    ob_start();
+    $bytes = PluginServicereportsGroupreportpdf::build($d);
+    ob_end_clean();
+
+    $file = 'chamados_por_grupo_' . $start . '_' . $end . '.pdf';
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="' . $file . '"');
     header('Content-Length: ' . strlen($bytes));
@@ -246,6 +293,7 @@ if ($tab === 'dashboard') {
         1 => __('Relatório central de serviços', 'servicereports'),
         2 => PluginServicereportsUpdatereport::title(PluginServicereportsUpdatereport::GRAIN_MONTH),
         3 => PluginServicereportsUpdatereport::title(PluginServicereportsUpdatereport::GRAIN_DAY),
+        4 => PluginServicereportsGroupreport::title(),
     ];
     echo "<form method='get' action='" . Html::cleanInputText($base) . "' class='mb-3' id='reportform'>";
     echo Html::hidden('tab', ['value' => 'relatorios']);
@@ -270,7 +318,7 @@ if ($tab === 'dashboard') {
     echo "<div class='col-auto'>" . Html::submit(__('Filtrar', 'servicereports'), ['class' => 'btn btn-primary']) . "</div>";
     echo "</div></form>";
 
-    if (!in_array($report, [1, 2, 3], true)) {
+    if (!in_array($report, [1, 2, 3, 4], true)) {
         echo "<div class='alert alert-info'>" . __('Selecione um relatório.', 'servicereports') . "</div>";
     } else {
         $args   = ['tab' => 'relatorios', 'report' => $report, 'start_date' => $start, 'end_date' => $end];
@@ -373,6 +421,54 @@ if ($tab === 'dashboard') {
                 __('Os 10 usuários com mais chamados abertos no período, pelo ator Requerente.', 'servicereports')
             );
             PluginServicereportsChart::hbars($d['requesters']['rows'], __('Chamados abertos', 'servicereports'));
+            $endSection();
+        } elseif ($report === 4) {
+            // "Chamados por grupo": capa, gráfico de barras horizontais e
+            // tabela — as mesmas três páginas do PDF, na mesma ordem.
+            $d = PluginServicereportsGroupreport::getReport($startDt, $endDt);
+
+            // 1) Capa / dados do relatório
+            echo "<div class='card mb-3'><div class='card-body'>";
+            echo "<h2 class='h4 mb-3'>" . PluginServicereportsGroupreport::title() . "</h2>";
+            echo "<div class='row g-3'>";
+            foreach ([
+                [__('Cliente', 'servicereports'), $d['client'] !== '' ? $d['client'] : '-'],
+                [__('Chamados no período', 'servicereports'), (string) (int) $d['total_tickets']],
+                [__('Grupos com chamado', 'servicereports'), (string) (int) $d['groups']],
+                [__('Sem grupo atribuído', 'servicereports'), (string) (int) $d['no_group']],
+            ] as [$k, $v]) {
+                echo "<div class='col-6 col-md-3'><div class='text-muted text-uppercase' style='font-size:.72rem'>$k</div>"
+                    . "<div class='h4 mb-0'>$v</div></div>";
+            }
+            echo "</div></div></div>";
+
+            // 2) Gráfico
+            $section(PluginServicereportsGroupreport::chartTitle(), PluginServicereportsGroupreport::hint());
+            PluginServicereportsChart::hbars($d['rows'], __('Chamados', 'servicereports'));
+            $endSection();
+
+            // 3) Tabela
+            $section(PluginServicereportsGroupreport::tableTitle(), '');
+            if (empty($d['rows'])) {
+                echo "<div class='alert alert-info'>" . __('Nenhum chamado encontrado no período.', 'servicereports') . "</div>";
+            } else {
+                echo "<div class='table-responsive'><table class='table table-sm table-hover table-bordered'>";
+                echo "<thead><tr><th>" . __('Grupo', 'servicereports') . "</th>"
+                    . "<th class='text-center'>" . __('Chamados', 'servicereports') . "</th>"
+                    . "<th class='text-center'>" . __('% do total', 'servicereports') . "</th></tr></thead><tbody>";
+                foreach ($d['rows'] as $row) {
+                    echo "<tr><td>" . $row['label'] . "</td>";
+                    echo "<td class='text-center'><strong>" . (int) $row['value'] . "</strong></td>";
+                    echo "<td class='text-center text-muted'>" . $row['note'] . "</td></tr>";
+                }
+                // O total é a SOMA das linhas: chamado em dois grupos conta nas
+                // duas, então ele pode passar os chamados do período (que ficam
+                // na capa). O percentual é sobre essa soma — daí os 100%.
+                echo "</tbody><tfoot><tr><th>" . __('Total', 'servicereports') . "</th>";
+                echo "<th class='text-center'>" . (int) $d['total_links'] . "</th>";
+                echo "<th class='text-center'>" . ($d['total_links'] > 0 ? '100,00%' : '') . "</th>";
+                echo "</tr></tfoot></table></div>";
+            }
             $endSection();
         } else {
             $d = PluginServicereportsUpdatereport::getReport($startDt, $endDt, $grain);

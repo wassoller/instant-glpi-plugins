@@ -30,6 +30,14 @@ if (isset($_POST['add'])) {
 } else {
     $id = (int) ($_GET['id'] ?? 0);
 
+    // display() só verifica o direito quando há id na URL; sem isso o formulário
+    // de criação abriria para quem não tem direito nenhum no plugin.
+    if ($id > 0) {
+        $ms->check($id, READ);
+    } else {
+        $ms->check(-1, CREATE);
+    }
+
     Html::header(
         PluginManagedservicesManagedservice::getTypeName(1),
         $_SERVER['PHP_SELF'],

@@ -43,7 +43,7 @@ class PluginManagedservicesProfile extends Profile
 
         echo "<div class='spaced'>";
         if ($openform && $canedit) {
-            echo "<form method='post' action='" . Profile::getFormURL()->__toString() . "'>";
+            echo "<form method='post' action='" . Profile::getFormURL() . "'>";
         }
 
         $profile = new Profile();

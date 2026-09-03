@@ -39,16 +39,18 @@ class PluginServicereportsProfile extends Profile
 
         echo "<div class='spaced'>";
         if ($openform && $canedit) {
-            echo "<form method='post' action='" . Profile::getFormURL()->__toString() . "'>";
+            echo "<form method='post' action='" . Profile::getFormURL() . "'>";
         }
 
         $profile = new Profile();
         $profile->getFromDB($profiles_id);
 
+        // PluginServicereportsMenu estende CommonGLPI e não tem getRights(),
+        // então a matriz recebe os direitos explicitamente (o plugin só lê dados).
         $rights = [[
-            'itemtype' => 'PluginServicereportsMenu',
-            'label'    => PluginServicereportsMenu::getTypeName(),
-            'field'    => self::RIGHT,
+            'rights' => [READ => __('Read')],
+            'label'  => PluginServicereportsMenu::getTypeName(),
+            'field'  => self::RIGHT,
         ]];
 
         $profile->displayRightsChoiceMatrix($rights, [
@@ -75,7 +77,7 @@ class PluginServicereportsProfile extends Profile
 
         $DB->update(
             'glpi_profilerights',
-            ['rights' => READ | UPDATE],
+            ['rights' => READ],
             ['name' => self::RIGHT, 'profiles_id' => 4]
         );
 
@@ -83,10 +85,10 @@ class PluginServicereportsProfile extends Profile
             $pid = (int) $_SESSION['glpiactiveprofile']['id'];
             $DB->update(
                 'glpi_profilerights',
-                ['rights' => READ | UPDATE],
+                ['rights' => READ],
                 ['name' => self::RIGHT, 'profiles_id' => $pid]
             );
-            $_SESSION['glpiactiveprofile'][self::RIGHT] = READ | UPDATE;
+            $_SESSION['glpiactiveprofile'][self::RIGHT] = READ;
         }
     }
 

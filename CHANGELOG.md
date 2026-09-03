@@ -4,6 +4,36 @@ Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/).
 Alvo: **GLPI 10.0.x** (validado em 10.0.26). A versão para GLPI 11 tem changelog
 próprio no repositório `instant-glpi11-plugins`.
 
+## [0.5.6] — 2026-09-03 (não lançado)
+
+Direitos por perfil: a aba de permissões dos dois plugins **nunca abriu** (fatal). Sem
+mudança de schema.
+
+### Corrigido
+- **Aba "Direitos" no formulário de Perfil quebrava com fatal** nos **dois** plugins:
+  `showRightsForm()` fazia `Profile::getFormURL()->__toString()`, mas no GLPI 10
+  `getFormURL()` já devolve **string** (`Toolbox::getItemTypeFormURL()`) — o erro era
+  *Call to a member function __toString() on string*, e a aba saía com um
+  `<div class='spaced'>` e nada mais. Como o output já tinha começado, a tela ficava
+  em branco sem mensagem de erro visível: **ninguém conseguia dar o direito a outro
+  perfil pela interface**.
+- **`servicereports`: a matriz de direitos usava `'itemtype' => 'PluginServicereportsMenu'`**,
+  e `Profile::getRightsFor()` chama `getRights()` — método de **`CommonDBTM`**, que a
+  `Menu` (um `CommonGLPI`) não tem. Passou a declarar os direitos explicitamente
+  (`'rights' => [READ => __('Read')]`): o plugin só lê dados, então **Ler** é o único
+  direito que faz sentido. A instalação passou a conceder `READ` (antes `READ|UPDATE`,
+  bit que nenhum código consultava).
+- **`front/managedservice.form.php` abria o formulário de criação sem direito nenhum**:
+  o `display()` do core só verifica o direito quando há `id` na URL. Agora o `else`
+  checa `READ` (com id) ou `CREATE` (novo), como nos formulários do core.
+
+### Testado
+Em GLPI 10.0.26 local: a aba abre nos dois plugins, **salvar concede o direito de
+verdade** (perfil Técnico recebeu `plugin_servicereports`=READ e
+`plugin_managedservices`=READ|UPDATE via interface) e, com o direito zerado, os menus
+somem de "Ativos"/"Gerência" e **todas** as páginas de `front/` respondem "não
+autorizado".
+
 ## [0.5.5] — 2026-08-28 (não lançado)
 
 Paridade com o repo GLPI 11 e ajuste de autoria. Sem mudança de schema.

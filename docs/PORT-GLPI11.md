@@ -22,8 +22,21 @@
 
 ## Pendente
 
-*(vazio — os dois repos ficaram em paridade em 2026-08-28; o port foi validado no
-GLPI 11.0.8 local, com sessão na entidade raiz e restrita a uma entidade filha.)*
+- **03/09 — correção dos direitos por perfil** (commit daqui: ver `CHANGELOG` 0.5.6).
+  Três mudanças pequenas, mas **confira se o repo 11 tem os mesmos defeitos** antes de
+  portar cegamente — o `Profile` do GLPI 11 pode devolver outro tipo em `getFormURL()`:
+  - `Profile::getFormURL()->__toString()` → `Profile::getFormURL()` nos **dois**
+    `Profile` (lá `src/Profile.php` de cada plugin). No GLPI 10 o método devolve
+    **string** e o `->__toString()` era fatal, deixando a aba de direitos em branco.
+  - `servicereports`: a matriz deixou de usar `'itemtype' => Menu::class` (a `Menu` é um
+    `CommonGLPI` e **não tem `getRights()`**, que é de `CommonDBTM`) e passou a declarar
+    `'rights' => [READ => __('Read')]`; a instalação concede `READ` (não `READ|UPDATE`).
+  - `managedservices/front/managedservice.form.php`: o ramo de exibição passou a chamar
+    `check($id, READ)` / `check(-1, CREATE)` — sem isso o formulário de **criação** abria
+    para quem não tem direito nenhum (o `display()` do core só checa quando há `id`).
+  - Ao portar, repita o teste de ponta a ponta: abrir a aba num perfil, **salvar**,
+    conferir `glpi_profilerights` e depois zerar o direito e ver menu sumido + `front/`
+    negando.
 
 Ao acrescentar um item aqui, copie o formato dos que estão em "Já portado": o que mudou,
 em que arquivos, e as regras que não dá para adivinhar lendo o código.

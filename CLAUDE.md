@@ -121,6 +121,16 @@ a tela não mudar, o suspeito seguinte é o **opcache** (`sudo systemctl restart
   — se o `FROM` aliasa a tabela (`FROM tabela ms`), passe o **alias**. Com sessão na
   entidade raiz vendo tudo o GLPI devolve string vazia e o erro **não aparece**; ele só
   surge quando a sessão está restrita a uma entidade. Teste sempre nas duas situações.
+- `Profile::getFormURL()` devolve **string** (`Toolbox::getItemTypeFormURL()`), não
+  objeto: `getFormURL()->__toString()` é fatal. Como a aba de direitos já tinha impresso
+  a `<div>` de abertura, ela ficava **em branco, sem erro na tela** — a única pista era o
+  `files/_log/php-errors.log`. Aba que "não abre" pede olhar esse log antes do código.
+- Matriz de direitos: `Profile::displayRightsChoiceMatrix()` com `'itemtype' => X` chama
+  `X::getRights()`, que é de **`CommonDBTM`**. Para uma classe que estende só
+  `CommonGLPI` (como a `PluginServicereportsMenu`), passe **`'rights' => [READ => …]`**.
+- `CommonGLPI::display()` só checa o direito quando há **`id` na URL** — o formulário de
+  criação (`form.php` sem id) abre para qualquer um. Nos `front/*.form.php`, faça o
+  `check($id, READ)` / `check(-1, CREATE)` explícito, como nos formulários do core.
 
 ## Acoplamento
 

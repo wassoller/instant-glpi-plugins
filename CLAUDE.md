@@ -93,10 +93,11 @@ cd /tmp/instant-glpi-plugins && git pull && sudo cp -r managedservices servicere
 de plugins de quem já tem o plugin instalado — ou você atualiza a linha na mão
 (`UPDATE glpi_plugins SET author='…' WHERE directory IN ('managedservices','servicereports');`)
 ou sobe a versão, e aí o GLPI **desativa** o plugin e exige o processo de atualização.
-Instalação nova lê tudo do `setup.php`. (O **`servicereports` já está em `0.5.6`**,
-alinhado com o CHANGELOG, porque a migração dos direitos por bloco exigiu a subida; o
-**`managedservices` continua em `0.1.0`** — subir é faxina pendente, com esse efeito
-colateral em mente.)
+Instalação nova lê tudo do `setup.php`. (Desde 03/09 **os dois plugins estão em
+`0.5.6`**, alinhados com o CHANGELOG: a migração dos direitos por bloco exigiu a subida
+no `servicereports`, e o `managedservices` foi junto — o que, de brinde, faz o campo
+`author` finalmente aparecer sem `UPDATE` manual. Da próxima vez que subir a versão,
+lembre do efeito colateral: o GLPI desativa o plugin e exige o passo "Atualizar".)
 
 **Lição cara (2026-08-19):** três correções seguidas pareceram "não fazer efeito" porque
 o `cp` para o caminho errado falhava com `No such file or directory` enquanto o
@@ -482,19 +483,23 @@ nunca paginam**; os formulários de filtro não enviam `start`, então filtrar v
 
 ## O que falta (Fase 7)
 
-Traduções `.mo` (hoje os textos saem em pt-BR direto pelos `__()`), refino de ícones.
-Rebuild dos `dist/*.zip` antes do deploy (o `zip -rq dist/<plugin>.zip <plugin>` já é o
-suficiente; confira descompactando e comparando com a pasta do plugin) — os que estão lá
-são de 28/08, anteriores à 0.5.6. Subir a **versão** do **`managedservices`** (ainda
-`0.1.0`, contra 0.5.x no CHANGELOG; o `servicereports` já foi para `0.5.6`) — lembrando
-do efeito no `glpi_plugins` descrito em "Deploy em produção". O GLPI 11 nunca foi instalado numa **VM
+Traduções `.mo` (hoje os textos saem em pt-BR direto pelos `__()`) e refino de ícones —
+**os dois deliberadamente adiados**: a interface é entregue em pt-BR e os `.mo` só
+importam quando alguém usar o GLPI em outro idioma.
+Rebuild dos `dist/*.zip` antes do deploy (`zip -rq dist/<plugin>.zip <plugin>`; confira
+descompactando e comparando com a pasta do plugin — os do repo são da 0.5.6, 03/09). O
+`docs/INSTALL.pdf` sai do `INSTALL.md` por
+**`python3 tools/build-install-pdf.py docs/INSTALL.md docs/INSTALL.pdf`** (ReportLab; o
+script cobre só o Markdown que o guia usa — recurso novo, ajuste lá). As **versões** dos
+dois plugins já estão alinhadas com o CHANGELOG (`0.5.6`). O GLPI 11 nunca foi instalado numa **VM
 real**, só validado local.
 
-**Paridade com o repo GLPI 11** (`instant-glpi11-plugins`): **em dia desde 2026-08-28**
-(versão **0.5.0** lá, validada no GLPI 11.0.8). Além do que já tinha ido antes (25/08,
-relatório 60, relatório 61 e o "Relatório central de serviços"), foi numa leva só o
-"Relatório de atualização - Cliente" (ids 2 e 3), o 2º gráfico do 61, o "Chamados por
-grupo" e o "Chamados por entidade".
+**Paridade com o repo GLPI 11** (`instant-glpi11-plugins`): **em dia desde 2026-09-03**,
+e agora os **dois repos usam o mesmo número de versão** (`0.5.6`) — mesmo número, mesmo
+conjunto de funcionalidades, validado no GLPI 11.0.8. Na leva de 03/09 foram a correção
+da aba de direitos e o acesso por bloco; antes disso (28/08, 0.5.0 lá) o "Relatório de
+atualização - Cliente" (ids 2 e 3), o 2º gráfico do 61, o "Chamados por grupo" e o
+"Chamados por entidade".
 **A fila de port fica em [docs/PORT-GLPI11.md](docs/PORT-GLPI11.md)** — acrescente um item
 lá a cada mudança aqui e risque quando portar; ela também registra **como** o port é feito
 (transformação mecânica validada sobre o commit de paridade e aplicada ao *patch*, não ao

@@ -22,44 +22,34 @@
 
 ## Pendente
 
-- **03/09 — correção dos direitos por perfil** (commit daqui: ver `CHANGELOG` 0.5.6).
-  Três mudanças pequenas, mas **confira se o repo 11 tem os mesmos defeitos** antes de
-  portar cegamente — o `Profile` do GLPI 11 pode devolver outro tipo em `getFormURL()`:
-  - `Profile::getFormURL()->__toString()` → `Profile::getFormURL()` nos **dois**
-    `Profile` (lá `src/Profile.php` de cada plugin). No GLPI 10 o método devolve
-    **string** e o `->__toString()` era fatal, deixando a aba de direitos em branco.
-  - `servicereports`: a matriz deixou de usar `'itemtype' => Menu::class` (a `Menu` é um
-    `CommonGLPI` e **não tem `getRights()`**, que é de `CommonDBTM`) e passou a declarar
-    `'rights' => [READ => __('Read')]`; a instalação concede `READ` (não `READ|UPDATE`).
-  - `managedservices/front/managedservice.form.php`: o ramo de exibição passou a chamar
-    `check($id, READ)` / `check(-1, CREATE)` — sem isso o formulário de **criação** abria
-    para quem não tem direito nenhum (o `display()` do core só checa quando há `id`).
-  - Ao portar, repita o teste de ponta a ponta: abrir a aba num perfil, **salvar**,
-    conferir `glpi_profilerights` e depois zerar o direito e ver menu sumido + `front/`
-    negando.
-- **03/09 — acesso por bloco no `servicereports`** (mesmo commit acima é o pré-requisito;
-  este vem logo depois). O direito único virou **três**
-  (`plugin_servicereports_central` / `_financial` / `_analysts`, só `READ`):
-  - `Menu` (lá `src/Menu.php`) ganha as constantes `RIGHT_*` e `RIGHT_LEGACY`, o
-    helper `rights()`, `getVisibleBlocks()`, um `'right'` por bloco em `getBlocks()`,
-    `canView()` = "pelo menos um" e `$rightname = ''`.
-  - `Profile::install()` monta a matriz a partir do `getBlocks()` e faz a **migração**:
-    lê quem tinha o direito antigo (>0) **antes** de mexer, adiciona só os direitos que
-    faltam, copia o acesso para os três e apaga o antigo; o ramo "instalação nova"
-    concede ao Super-Admin. Idempotente, porque o GLPI chama a mesma `install()` na
-    atualização.
-  - `front/central.php` filtra os cards e usa `Menu::canView()`; os outros três
-    `front/*.php` checam o direito do seu bloco.
-  - **A versão lá também tem de subir** (o repo 11 está em 0.5.0): sem isso o GLPI não
-    roda a atualização e a migração dos direitos nunca acontece.
-  - Teste: as seis combinações de direito (três, cada um sozinho, dois e nenhum) contra
-    menu + submenu + cards + acesso direto; a migração com o direito antigo em vários
-    perfis; e uma instalação limpa.
+*(vazio — os dois repos ficaram em paridade em 2026-09-03, agora com o **mesmo número de
+versão**, `0.5.6`. O port foi validado no GLPI 11.0.8 local.)*
 
 Ao acrescentar um item aqui, copie o formato dos que estão em "Já portado": o que mudou,
 em que arquivos, e as regras que não dá para adivinhar lendo o código.
 
 ## Já portado
+
+- **03/09 — direitos: correção da aba e acesso por bloco** (repo 11 na **0.5.6**;
+  commits daqui: `daead8a` e o do acesso por bloco). Os mesmos defeitos existiam lá, com
+  **sintomas diferentes** — vale a lição de não assumir que o port está são só porque o
+  código é "o mesmo":
+  - A aba do `servicereports` dava **HTTP 500** (`getRights()` na `Menu`, método de
+    `CommonDBTM`); a do `managedservices` **abria**, mas com o `action` do formulário
+    apontando para `/plugins/managedservices/front/profile.form.php`. O `self::getFormURL()`
+    de lá é uma chamada **forwarding**: resolve para a classe do plugin, e o
+    `GenericFormController` do GLPI 11 estoura procurando
+    `glpi_plugin_managedservices_profiles`. Agora é `\Profile::getFormURL()` nos dois
+    (no GLPI 10 o código já usava a forma não-forwarding, por isso o sintoma lá era outro).
+  - Três direitos (`plugin_servicereports_central` / `_financial` / `_analysts`) com
+    `Menu::rights()`, `getVisibleBlocks()`, `'right'` por bloco e `canView(): bool` =
+    "pelo menos um" (o `: bool` é exigência do 11).
+  - `Profile::install()` usa **`$migration->addRight()`** (não `ProfileRight::addProfileRights()`):
+    na atualização entra com `addRight($r, 0, [])` — linha zerada para todo mundo — e a
+    migração decide quem recebe; na instalação nova, `addRight($r, READ, ['config' => UPDATE])`.
+  - `managedservice.form.php` ganhou o `check($id, READ)` / `check(-1, CREATE)`.
+  - **Versão dos dois plugins foi para `0.5.6`** (estava `0.1.0`), alinhando os dois
+    repositórios: mesmo número, mesmo conjunto de funcionalidades.
 
 - Mudanças de 25/08 (período por data de fechamento, layout "Institucional", PDF via
   TCPDF, remoção do relatório 4 da Gestão financeira).

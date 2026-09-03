@@ -111,9 +111,10 @@ Guia completo em [docs/INSTALL.md](docs/INSTALL.md) (e `docs/INSTALL.pdf`). Resu
 - [~] **Fase 7** — polish: **feito** os pacotes `dist/*.zip`, o guia de instalação, o
   deploy na VM real (`/var/www/instant/glpi`) e a **paridade da versão GLPI 11** (em dia
   desde 2026-08-28, versão 0.5.0 lá); **pendente** as traduções `.mo` (os textos já saem
-  em pt-BR via `__()`), o refino de ícones, subir a **versão** do `managedservices` (ainda `0.1.0`
-  nos `setup.php`) e instalar a versão GLPI 11 numa **VM real** — ela só foi validada em
-  ambiente local.
+  em pt-BR via `__()`), o refino de ícones e instalar a versão GLPI 11 numa **VM real** —
+  ela só foi validada em ambiente local. As **versões** dos dois plugins já estão em
+  `0.5.6`, alinhadas com o CHANGELOG, e os `dist/*.zip` e o `INSTALL.pdf` foram regerados
+  em 03/09.
 
 Também disponível: **port para GLPI 11** no repositório `instant-glpi11-plugins`.
 

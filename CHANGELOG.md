@@ -7,8 +7,8 @@ próprio no repositório `instant-glpi11-plugins`.
 ## [0.5.6] — 2026-09-03 (não lançado)
 
 Direitos por perfil: a aba de permissões dos dois plugins **nunca abriu** (fatal) e o
-acesso a "Relatórios" era tudo ou nada. Sem mudança de schema, mas **a versão do
-`servicereports` subiu** — ver "Alterado".
+acesso a "Relatórios" era tudo ou nada. Sem mudança de schema, mas **a versão dos dois
+plugins subiu para `0.5.6`** — ver "Alterado".
 
 ### Corrigido
 - **Aba "Direitos" no formulário de Perfil quebrava com fatal** nos **dois** plugins:
@@ -45,12 +45,15 @@ acesso a "Relatórios" era tudo ou nada. Sem mudança de schema, mas **a versão
   `install()` na atualização) e lê o estado anterior antes de mexer em qualquer coisa.
 
 ### Alterado
-- **Versão do `servicereports` foi de `0.1.0` para `0.5.6`** (alinhando com este
-  changelog). Era necessário: o GLPI só roda a atualização de um plugin quando a versão
-  muda. **Efeito no deploy** — ao subir os arquivos o GLPI **desativa** o plugin e pede
-  o passo "Atualizar" na tela de plugins (ou `plugin:install servicereports -f` +
-  `plugin:activate` no console); é nesse passo que a migração dos direitos roda. O
-  `managedservices` continua em `0.1.0`, sem mudança de metadados.
+- **Versão dos dois plugins foi de `0.1.0` para `0.5.6`**, alinhando com este changelog
+  (era a faxina pendente desde a 0.5.5). No `servicereports` era **necessária**: o GLPI
+  só roda a atualização de um plugin quando a versão muda, e é nela que a migração dos
+  direitos acontece. No `managedservices` a subida resolve de brinde a pendência do
+  **autor** — a linha de `glpi_plugins` só é reescrita quando a versão muda, então o
+  "Lyon Wassoller" da 0.5.5 passa a aparecer sozinho, sem o `UPDATE` manual.
+  **Efeito no deploy** — ao subir os arquivos o GLPI **desativa os dois** e pede o passo
+  "Atualizar" na tela de plugins (ou `plugin:install <nome> -f` + `plugin:activate` no
+  console). Instale o `managedservices` primeiro, como sempre.
 
 ### Testado
 Em GLPI 10.0.26 local: a aba abre nos dois plugins e **salvar concede o direito de
@@ -65,7 +68,25 @@ páginas seguem o direito em todas elas. A **migração** foi testada com o dire
 antigo concedido a três perfis (Super-Admin, Técnico e Supervisor): os três saíram com
 os três direitos novos, os demais perfis em 0 e a linha antiga removida. A
 **instalação limpa** (desinstalar + instalar) cria as 24 linhas (8 perfis × 3) com só
-o Super-Admin liberado.
+o Super-Admin liberado. A atualização do `managedservices` (só a versão) foi
+exercitada também: as tabelas ficam de pé (o `install()` é guardado por `tableExists`)
+e os direitos dos perfis continuam como estavam.
+
+### Documentação e pacotes
+- **`dist/managedservices.zip` e `dist/servicereports.zip` regerados** (estavam de
+  28/08) e conferidos descompactando e comparando com as pastas do repo.
+- **`docs/INSTALL.pdf` regerado** a partir do `INSTALL.md`, agora por um script versionado
+  — **[tools/build-install-pdf.py](tools/build-install-pdf.py)** (ReportLab). Antes o PDF
+  era um artefato solto que ninguém sabia refazer; agora é
+  `python3 tools/build-install-pdf.py docs/INSTALL.md docs/INSTALL.pdf`. O guia ganhou
+  onde ficam os direitos (Administração > Perfis, uma linha por bloco em "Relatórios") e
+  a explicação do plugin que aparece **desativado** depois de uma troca de versão.
+- **Paridade com o repo GLPI 11 refeita na sequência** (`instant-glpi11-plugins` 0.5.6):
+  lá os mesmos defeitos existiam com sintomas diferentes — a aba do `servicereports` dava
+  **HTTP 500** (`getRights()` na `Menu`) e a do `managedservices` abria, mas com
+  `action` apontando para `/plugins/managedservices/front/profile.form.php`, que **não
+  existe** (o `GenericFormController` do GLPI 11 tentava resolver o itemtype e estourava
+  procurando `glpi_plugin_managedservices_profiles`). Salvar direito nenhum funcionava.
 
 ## [0.5.5] — 2026-08-28 (não lançado)
 

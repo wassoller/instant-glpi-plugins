@@ -136,9 +136,10 @@ Se houver mudança de estrutura de banco, rode a atualização do plugin em
   (Central de serviços, Gestão financeira, Analistas): dá para liberar só um.
   Um perfil sem nenhum dos três não vê a entrada "Relatórios" em Gerência.
 - **"Atualizei os arquivos e o plugin apareceu desativado."** Esperado quando a
-  **versão** do plugin muda (foi o caso do `servicereports` na 0.5.6): o GLPI
+  **versão** do plugin muda — foi o caso dos **dois** plugins na 0.5.6: o GLPI
   exige o botão *Atualizar* em Configuração > Plugins e só então reativa. É
-  nesse passo que a migração dos direitos por bloco roda.
+  nesse passo que a migração dos direitos por bloco (Relatórios) roda. Faça o
+  `managedservices` primeiro, como na instalação.
 - **Versão errada do GLPI.** Cada repositório é específico: use o de GLPI 10
   num GLPI 10 e o de GLPI 11 num GLPI 11. O plugin recusa a instalação fora da
   faixa suportada.

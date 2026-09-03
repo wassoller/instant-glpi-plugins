@@ -4,6 +4,58 @@ Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/).
 Alvo: **GLPI 10.0.x** (validado em 10.0.26). A versão para GLPI 11 tem changelog
 próprio no repositório `instant-glpi11-plugins`.
 
+## [0.5.7] — 2026-09-03 (não lançado)
+
+Correção de segurança (XSS armazenado) e reforço do escape de saída. Sem mudança de
+schema **nem de versão dos plugins** (continuam `0.5.6`): são só arquivos PHP, o deploy é
+copiar e recarregar.
+
+### Segurança
+- **XSS armazenado nas telas de relatório.** As tabelas HTML imprimiam texto vindo do
+  banco — nome de entidade, grupo, categoria, usuário, título de chamado — **sem escapar**,
+  confiando em que o GLPI devolve o texto já escapado. Isso vale no **GLPI 10** (o
+  `Sanitizer` escapa na entrada), mas **o GLPI 11 removeu o `Sanitizer`** e guarda o texto
+  cru: lá o defeito era explorável de verdade — quem pudesse **nomear** uma entidade, um
+  grupo ou uma categoria (perfil de administração, não o usuário comum) injetava HTML/JS
+  que executava no navegador de **todo mundo que abrisse o relatório**. Confirmado no
+  ambiente local: uma entidade chamada `<b>PROBE_ENT</b>` saía crua no `<td>` do relatório
+  "Chamados por entidade".
+  Aqui, no GLPI 10, o mesmo código **não era explorável** (o texto chega escapado do
+  banco), mas a correção veio junto por paridade e por defesa em profundidade — não é
+  saudável depender de um comportamento da plataforma que já mudou uma vez.
+- **`PluginServicereportsChart::esc()` virou pública e é agora a única forma de imprimir
+  texto do banco numa tela do plugin** (`htmlspecialchars` sobre o texto sem entidades e
+  sem tags). Aplicada em ~20 pontos: cabeçalho e células das tabelas dos relatórios 4, 5,
+  57, 59, 60 e 61, cartões de técnico, legenda dos gráficos, e no Extrato o nome da
+  entidade, do serviço, o título do chamado, o requerente, a categoria e o "Impresso por".
+- **Atributos `data-*` e `aria-label` dos gráficos deixaram de usar `Html::cleanInputText`**:
+  ele escapa **só as aspas** (`preg_replace` de `'` e `"`), então `<` ia cru para dentro do
+  atributo. Não era explorável (sem aspas não se escapa do atributo, e o tooltip monta o
+  conteúdo com `textContent`), mas `esc()` fecha a categoria inteira em vez de depender
+  disso.
+
+### Testado
+GLPI 10.0.26 **e** GLPI 11.0.8, com entidade, grupo, categoria e usuário renomeados para
+payloads (`<b>`, `<i>`, `<u>`, `<svg onload=…>`, `<img src=x onerror=…>`): as **15 telas**
+do plugin (5 relatórios da Central, Dashboard, Técnicos, 4 relatórios de Analistas,
+Dashboards e 2 relatórios financeiros, landing) saem com **zero** payload cru. No GLPI 10
+foi conferido também que **não houve escape duplo** (nada de `&amp;lt;`) e que o `>` do
+nome em árvore continua aparecendo como `>`. PDF (3 rotas) e CSV (2 rotas) continuam
+íntegros.
+
+### Auditoria feita junto (sem alteração)
+- **SQL**: as 26 consultas cruas do plugin usam `$DB->escape()` nas datas — que já chegam
+  validadas por `preg_match('/^\d{4}-\d{2}-\d{2}$/')` nas telas — e `(int)` em todo id;
+  não há entrada de usuário concatenada sem tratamento.
+- **Arquivos servidos como texto**: o único arquivo não-PHP dentro dos plugins é
+  `servicereports/pics/instant-logo.png`. Não há `.sql`, `.md`, `.json`, backup ou `.zip`
+  dentro das pastas publicadas.
+- **Includes diretos**: todos os `inc/*.class.php` têm a guarda `GLPI_ROOT`; todo
+  `front/*.php` faz `Session::checkRight()` antes de qualquer saída.
+- **Conhecido, não corrigido**: os CSV não neutralizam fórmula (um campo começando com
+  `=`, `+`, `-` ou `@` é interpretado pelo Excel ao abrir). Vale tratar se os CSV
+  circularem fora da equipe.
+
 ## [0.5.6] — 2026-09-03 (não lançado)
 
 Direitos por perfil: a aba de permissões dos dois plugins **nunca abriu** (fatal) e o

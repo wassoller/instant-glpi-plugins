@@ -685,7 +685,7 @@ class PluginServicereportsFinancial
         echo "</div>";
 
         echo "<dl class='sr-meta'>";
-        echo "<dt>" . __('Empresa', 'servicereports') . "</dt><dd>" . $entityName . "</dd>";
+        echo "<dt>" . __('Empresa', 'servicereports') . "</dt><dd>" . PluginServicereportsChart::esc($entityName) . "</dd>";
         echo "<dt>" . __('Período', 'servicereports') . "</dt><dd>"
             . Html::convDate($start) . " – " . Html::convDate($end) . "</dd>";
         echo "<dt>" . __('Emissão', 'servicereports') . "</dt><dd>"
@@ -697,10 +697,10 @@ class PluginServicereportsFinancial
     /** Rodapé do documento: quem imprimiu e quando. */
     private static function docFoot(string $entityName): void
     {
-        $user = getUserName(Session::getLoginUserID());
+        $user = PluginServicereportsChart::esc(getUserName(Session::getLoginUserID()));
 
         echo "<div class='sr-foot'>";
-        echo "<span>" . __('Extrato de consumo de serviços', 'servicereports') . " · " . $entityName . "</span>";
+        echo "<span>" . __('Extrato de consumo de serviços', 'servicereports') . " · " . PluginServicereportsChart::esc($entityName) . "</span>";
         echo "<span>" . sprintf(
             __('Impresso por %1$s em %2$s', 'servicereports'),
             $user,
@@ -746,7 +746,7 @@ class PluginServicereportsFinancial
     {
         echo "<div class='sr-svc'>";
         echo "<div class='sr-svc-bar'>";
-        echo "<h4>" . $svc['name'] . "</h4>";
+        echo "<h4>" . PluginServicereportsChart::esc($svc['name']) . "</h4>";
         echo "<div class='sr-svc-tot'>" . __('Custo total', 'servicereports')
             . " <b>" . self::money($svc['total']) . "</b></div>";
         echo "</div>";
@@ -808,11 +808,11 @@ class PluginServicereportsFinancial
             $url = $CFG_GLPI['root_doc'] . '/front/ticket.form.php?id=' . $t['id'];
             echo "<tr>";
             echo "<td><a href='" . Html::cleanInputText($url) . "'>" . $t['id'] . "</a></td>";
-            echo "<td title='" . Html::cleanInputText($t['name']) . "'>" . $t['name'] . "</td>";
+            echo "<td title='" . Html::cleanInputText($t['name']) . "'>" . PluginServicereportsChart::esc($t['name']) . "</td>";
             echo "<td>" . Ticket::getTicketTypeName($t['type']) . "</td>";
             $cat = $t['cat'] ? Dropdown::getDropdownName('glpi_itilcategories', $t['cat']) : '-';
-            echo "<td title='" . Html::cleanInputText($cat) . "'>" . $cat . "</td>";
-            echo "<td>" . ($t['requester'] !== '' ? $t['requester'] : '-') . "</td>";
+            echo "<td title='" . Html::cleanInputText($cat) . "'>" . PluginServicereportsChart::esc($cat) . "</td>";
+            echo "<td>" . ($t['requester'] !== '' ? PluginServicereportsChart::esc($t['requester']) : '-') . "</td>";
             echo "<td>" . Html::convDateTime($t['date']) . "</td>";
             echo "<td>" . ($t['closedate'] !== '' ? Html::convDateTime($t['closedate']) : '-') . "</td>";
             echo "<td class='r'>" . self::hms((int) $t['seconds']) . "</td>";
@@ -928,7 +928,7 @@ class PluginServicereportsFinancial
                 $pct = round($d['value'] / $max * 100);
                 echo "<div class='mb-2'>";
                 echo "<div class='d-flex justify-content-between' style='font-size:.8rem'>";
-                echo "<span class='text-truncate' style='max-width:60%'>" . $d['label'] . "</span>";
+                echo "<span class='text-truncate' style='max-width:60%'>" . PluginServicereportsChart::esc($d['label']) . "</span>";
                 echo "<span class='text-muted'>" . self::money($d['value']) . "</span>";
                 echo "</div>";
                 echo "<div class='progress' style='height:10px'>";

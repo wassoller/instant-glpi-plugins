@@ -803,7 +803,7 @@ JS);
 
         echo "<div class='sr-cst-wrap'>";
         echo "<svg class='sr-cst' width='$w' height='$h' viewBox='0 0 $w $h' role='img' "
-            . "aria-label='" . Html::cleanInputText($aria) . "'>";
+            . "aria-label='" . PluginServicereportsChart::esc($aria) . "'>";
 
         // Grade + eixo Y.
         for ($v = 0; $v <= $top; $v += $step) {
@@ -831,8 +831,8 @@ JS);
                 $pct  = $row['total'] > 0 ? round($n / $row['total'] * 100) : 0;
                 echo "<rect class='sr-cst-seg' x='$x' y='" . round($y, 2) . "' width='$barW' height='" . round($segH, 2) . "'"
                     . " fill='" . $colors[$k] . "'"
-                    . " data-tech='" . Html::cleanInputText($plain) . "'"
-                    . " data-series='" . Html::cleanInputText(html_entity_decode($labels[$k], ENT_QUOTES | ENT_HTML5, 'UTF-8')) . "'"
+                    . " data-tech='" . PluginServicereportsChart::esc($plain) . "'"
+                    . " data-series='" . PluginServicereportsChart::esc($labels[$k]) . "'"
                     . " data-n='$n' data-pct='$pct' data-total='" . (int) $row['total'] . "'></rect>";
             }
             // Total acima da barra.

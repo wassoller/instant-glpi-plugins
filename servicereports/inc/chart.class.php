@@ -104,8 +104,10 @@ JS);
     /** Atributos de tooltip de um elemento SVG. */
     private static function tip(string $title, array $lines): string
     {
-        return " data-tip-title='" . Html::cleanInputText(self::plain($title)) . "'"
-            . " data-tip-body='" . Html::cleanInputText(self::plain(implode('|', $lines))) . "'";
+        // esc() e não cleanInputText(): o cleanInputText do GLPI escapa só as
+        // aspas, deixando "<" cru dentro do atributo.
+        return " data-tip-title='" . self::esc($title) . "'"
+            . " data-tip-body='" . self::esc(implode('|', $lines)) . "'";
     }
 
     /** Texto sem entidades HTML (o GLPI devolve conteúdo escapado). */
@@ -114,8 +116,15 @@ JS);
         return html_entity_decode(strip_tags($v), ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
 
-    /** Escapa para nó de texto do SVG. */
-    private static function esc(string $v): string
+    /**
+     * Escapa texto vindo do banco para sair em HTML/SVG.
+     *
+     * É a **única** forma segura de imprimir nome de usuário, entidade, grupo,
+     * categoria ou título de chamado numa tela do plugin. Não dependa do banco
+     * vir escapado: o GLPI 10 escapava na entrada (`Sanitizer`), **o GLPI 11
+     * não escapa mais** — quem confiar nisso publica um XSS armazenado.
+     */
+    public static function esc(string $v): string
     {
         return htmlspecialchars(self::plain($v), ENT_QUOTES, 'UTF-8');
     }
@@ -132,7 +141,7 @@ JS);
     {
         echo "<div class='sr-ch-legend'>";
         foreach ($keys as $k) {
-            echo "<span class='sr-ch-key'><i style='background:" . $k['color'] . "'></i>" . $k['label'] . "</span>";
+            echo "<span class='sr-ch-key'><i style='background:" . $k['color'] . "'></i>" . self::esc($k['label']) . "</span>";
         }
         echo "</div>";
     }

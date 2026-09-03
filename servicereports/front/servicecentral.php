@@ -520,7 +520,7 @@ if ($tab === 'dashboard') {
                     . "<th class='text-center'>" . __('Chamados', 'servicereports') . "</th>"
                     . "<th class='text-center'>" . __('% do total', 'servicereports') . "</th></tr></thead><tbody>";
                 foreach ($d['rows'] as $row) {
-                    echo "<tr><td>" . $row['label'] . "</td>";
+                    echo "<tr><td>" . PluginServicereportsChart::esc($row['label']) . "</td>";
                     echo "<td class='text-center'><strong>" . (int) $row['value'] . "</strong></td>";
                     echo "<td class='text-center text-muted'>" . $row['note'] . "</td></tr>";
                 }
@@ -573,7 +573,7 @@ if ($tab === 'dashboard') {
                 }
                 echo "<th class='text-center'>" . __('Total', 'servicereports') . "</th></tr></thead><tbody>";
                 foreach ($d['rows'] as $row) {
-                    echo "<tr><td>" . $row['fullname'] . "</td>";
+                    echo "<tr><td>" . PluginServicereportsChart::esc($row['fullname']) . "</td>";
                     foreach ($d['keys'] as $k) {
                         $n = (int) ($row['counts'][$k] ?? 0);
                         echo "<td class='text-center" . ($n > 0 ? '' : ' sr-cst-zero') . "'>$n</td>";

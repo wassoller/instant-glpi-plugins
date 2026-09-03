@@ -221,7 +221,7 @@ if ($tab === 'tecnicos') {
             $reqPct  = round($p['requests'] / $total * 100);
             $sat     = $p['satisfaction'] === null ? '—' : $p['satisfaction'] . '%';
             echo "<div class='col'><div class='card h-100 shadow-sm'><div class='card-body'>";
-            echo "<h3 class='h6 mb-3'><i class='ti ti-user me-1'></i>" . $p['name'] . "</h3>";
+            echo "<h3 class='h6 mb-3'><i class='ti ti-user me-1'></i>" . PluginServicereportsChart::esc($p['name']) . "</h3>";
             echo "<div class='d-flex justify-content-between mb-1'><span class='text-muted'>" . __('Horas trabalhadas', 'servicereports') . "</span><strong>" . PluginServicereportsAnalysts::secToHms((int) $p['worked']) . "</strong></div>";
             echo "<div class='d-flex justify-content-between mb-1'><span class='text-muted'>" . __('Pontos', 'servicereports') . "</span><strong>" . (int) $p['solved'] . "</strong></div>";
             echo "<div class='d-flex justify-content-between mb-1'><span class='text-muted'>" . __('Satisfação', 'servicereports') . "</span><strong>$sat</strong></div>";
@@ -299,12 +299,12 @@ if ($tab === 'tecnicos') {
         foreach ($data['rows'] as $r) {
             echo "<tr>";
             echo "<td><a href='" . Html::cleanInputText($CFG_GLPI['root_doc'] . '/front/ticket.form.php?id=' . (int) $r['tickets_id']) . "'>" . (int) $r['tickets_id'] . "</a></td>";
-            echo "<td>" . getUserName((int) $r['author']) . "</td>";
-            echo "<td>" . Dropdown::getDropdownName('glpi_entities', (int) $r['entities_id']) . "</td>";
+            echo "<td>" . PluginServicereportsChart::esc(getUserName((int) $r['author'])) . "</td>";
+            echo "<td>" . PluginServicereportsChart::esc(Dropdown::getDropdownName('glpi_entities', (int) $r['entities_id'])) . "</td>";
             echo "<td>" . Html::convDateTime($r['task_date']) . "</td>";
-            echo "<td>" . ((int) $r['ticket_cat'] ? Dropdown::getDropdownName('glpi_itilcategories', (int) $r['ticket_cat']) : '-') . "</td>";
-            echo "<td>" . Html::resume_text(Toolbox::stripTags($r['content']), 50) . "</td>";
-            echo "<td>" . getUserName((int) $r['tech']) . "</td>";
+            echo "<td>" . ((int) $r['ticket_cat'] ? PluginServicereportsChart::esc(Dropdown::getDropdownName('glpi_itilcategories', (int) $r['ticket_cat'])) : '-') . "</td>";
+            echo "<td>" . PluginServicereportsChart::esc(Html::resume_text(Toolbox::stripTags($r['content']), 50)) . "</td>";
+            echo "<td>" . PluginServicereportsChart::esc(getUserName((int) $r['tech'])) . "</td>";
             echo "<td>" . Html::convDateTime($r['begin']) . "</td>";
             echo "<td>" . Html::convDateTime($r['end']) . "</td>";
             echo "<td>" . PluginServicereportsAnalysts::secToHms((int) $r['actiontime']) . "</td>";
@@ -337,11 +337,11 @@ if ($tab === 'tecnicos') {
             . "<th>" . __('Entidade', 'servicereports') . "</th></tr></thead><tbody>";
         foreach ($rows as $r) {
             echo "<tr>";
-            echo "<td>" . getUserName((int) $r['tech']) . "</td>";
+            echo "<td>" . PluginServicereportsChart::esc(getUserName((int) $r['tech'])) . "</td>";
             echo "<td>" . (int) $r['tickets_id'] . "</td>";
             echo "<td>" . PluginServicereportsAnalysts::secToHms((int) $r['total']) . "</td>";
             echo "<td>" . PluginServicereportsAnalysts::secToHms((int) $r['outside']) . "</td>";
-            echo "<td>" . Dropdown::getDropdownName('glpi_entities', (int) $r['entities_id']) . "</td>";
+            echo "<td>" . PluginServicereportsChart::esc(Dropdown::getDropdownName('glpi_entities', (int) $r['entities_id'])) . "</td>";
             echo "</tr>";
         }
         if (empty($rows)) {
@@ -387,12 +387,12 @@ if ($tab === 'tecnicos') {
             echo "<thead><tr><th class='sr-eva-name'>" . __('Analista', 'servicereports') . "</th>";
             foreach ($entCols as $entId) {
                 $e = $m['entities'][$entId];
-                echo "<th class='text-center' title='" . Html::cleanInputText($e['completename']) . "'>" . $e['name'] . "</th>";
+                echo "<th class='text-center' title='" . Html::cleanInputText($e['completename']) . "'>" . PluginServicereportsChart::esc($e['name']) . "</th>";
             }
             echo "<th class='text-center'>" . __('Total', 'servicereports') . "</th></tr></thead><tbody>";
 
             foreach ($m['rows'] as $row) {
-                echo "<tr><td class='sr-eva-name'>" . $row['name'] . "</td>";
+                echo "<tr><td class='sr-eva-name'>" . PluginServicereportsChart::esc($row['name']) . "</td>";
                 foreach ($entCols as $entId) {
                     $sec  = (int) ($row['cells'][$entId] ?? 0);
                     $cls  = $sec > 0 ? '' : ' sr-eva-zero';
@@ -441,7 +441,7 @@ if ($tab === 'tecnicos') {
             }
             echo "<th class='text-center'>" . __('Total', 'servicereports') . "</th></tr></thead><tbody>";
             foreach ($d['rows'] as $row) {
-                echo "<tr><td>" . $row['name'] . "</td>";
+                echo "<tr><td>" . PluginServicereportsChart::esc($row['name']) . "</td>";
                 foreach ($d['keys'] as $k) {
                     $n = (int) ($row['counts'][$k] ?? 0);
                     echo "<td class='text-center" . ($n > 0 ? '' : ' sr-cst-zero') . "'>$n</td>";

@@ -165,6 +165,36 @@ Cada bloco tem o **seu** direito, então um perfil pode ver só "Analistas", só
   muda — e, ao mudar, **desativa o plugin** e exige o passo "Atualizar" na tela de
   plugins (ou `plugin:install servicereports -f` + `plugin:activate` no console).
 
+## Escape de saída (regra de ouro, aprendida com um XSS real)
+
+**Todo texto vindo do banco que vai para o HTML passa por
+`PluginServicereportsChart::esc()`** — nome de entidade, grupo, categoria, usuário,
+título de chamado, `getUserName()`, `Dropdown::getDropdownName()`. Sem exceção, inclusive
+dentro de atributo.
+
+- **Por que não confiar no banco:** o GLPI 10 escapa na entrada (`Toolbox\Sanitizer`), e
+  por isso durante muito tempo imprimir `$row['name']` cru "funcionou". **O GLPI 11
+  removeu o `Sanitizer`** e guarda o texto cru — o mesmo código virou **XSS armazenado
+  lá** (03/09: uma entidade chamada `<b>x</b>` saía crua no `<td>` do relatório 5). A
+  correção foi aplicada nos **dois** repos: aqui é defesa em profundidade, lá era falha
+  de verdade.
+- `esc()` = `htmlspecialchars(plain($v), ENT_QUOTES)`, e `plain()` faz
+  `html_entity_decode(strip_tags($v))`. É **idempotente** com o texto já escapado do
+  GLPI 10 (decodifica e reescapa: mesma saída), então dá para usar nos dois sem escape
+  duplo — foi conferido (`&amp;lt;` = 0) e o `>` do completename continua saindo como `>`.
+- **`Html::cleanInputText()` não serve para isto**: ele escapa **só as aspas**
+  (`preg_replace` de `'` e `"`), deixando `<` cru. Servia nos `data-*` porque sem aspas
+  não se escapa do atributo — mas é uma garantia frágil demais para se apoiar. Nos
+  gráficos os `data-tip-*`/`data-tech`/`aria-label` passaram a usar `esc()`.
+- **Onde não se aplica:** PDF (TCPDF recebe texto puro, via `plain()`) e CSV (não é HTML —
+  lá o cuidado é o `html_entity_decode`, e fica **pendente** neutralizar fórmula, um campo
+  iniciado por `=`/`+`/`-`/`@` é executado pelo Excel).
+- Ao criar uma tela nova, a varredura que pega isso é procurar `echo` com `. $var` sem
+  `esc(`/`cleanInputText`/`(int)` — mas **cuidado com falso negativo**: uma linha pode ter
+  o `cleanInputText` no atributo e a variável crua no corpo
+  (`<th title='<escapado>'>` + `$e['name']` cru foi exatamente o caso que escapou da
+  primeira varredura). Confira ocorrência a ocorrência, não a linha inteira.
+
 ## Acoplamento
 
 `servicereports` (Gestão financeira) lê `glpi_plugin_managedservices_financialvalues`

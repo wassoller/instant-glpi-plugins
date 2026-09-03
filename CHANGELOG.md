@@ -6,8 +6,9 @@ próprio no repositório `instant-glpi11-plugins`.
 
 ## [0.5.6] — 2026-09-03 (não lançado)
 
-Direitos por perfil: a aba de permissões dos dois plugins **nunca abriu** (fatal). Sem
-mudança de schema.
+Direitos por perfil: a aba de permissões dos dois plugins **nunca abriu** (fatal) e o
+acesso a "Relatórios" era tudo ou nada. Sem mudança de schema, mas **a versão do
+`servicereports` subiu** — ver "Alterado".
 
 ### Corrigido
 - **Aba "Direitos" no formulário de Perfil quebrava com fatal** nos **dois** plugins:
@@ -27,12 +28,44 @@ mudança de schema.
   o `display()` do core só verifica o direito quando há `id` na URL. Agora o `else`
   checa `READ` (com id) ou `CREATE` (novo), como nos formulários do core.
 
+### Adicionado
+- **Acesso por bloco no `servicereports`**: o direito único `plugin_servicereports`
+  virou **três**, um por relatório — `plugin_servicereports_central`,
+  `plugin_servicereports_financial` e `plugin_servicereports_analysts` (só **Ler**; o
+  plugin não grava nada). Um perfil pode receber, por exemplo, só "Analistas". A matriz
+  na aba de Perfil passou a ter uma linha por bloco, e ela se monta a partir de
+  `PluginServicereportsMenu::getBlocks()` — bloco novo aparece sozinho.
+- O menu de Gerência, o submenu e a grade de cards de `front/central.php` mostram
+  **apenas os blocos permitidos**; a entrada "Relatórios" aparece para quem tiver
+  **pelo menos um** (`PluginServicereportsMenu::canView()`), e some quando não tiver
+  nenhum. Cada `front/*.php` checa o direito do seu bloco.
+- **Migração que preserva o acesso atual**: na atualização, quem tinha
+  `plugin_servicereports` > 0 recebe os **três** direitos novos e o antigo é apagado —
+  ninguém perde relatório ao atualizar. A rotina é idempotente (o GLPI chama a mesma
+  `install()` na atualização) e lê o estado anterior antes de mexer em qualquer coisa.
+
+### Alterado
+- **Versão do `servicereports` foi de `0.1.0` para `0.5.6`** (alinhando com este
+  changelog). Era necessário: o GLPI só roda a atualização de um plugin quando a versão
+  muda. **Efeito no deploy** — ao subir os arquivos o GLPI **desativa** o plugin e pede
+  o passo "Atualizar" na tela de plugins (ou `plugin:install servicereports -f` +
+  `plugin:activate` no console); é nesse passo que a migração dos direitos roda. O
+  `managedservices` continua em `0.1.0`, sem mudança de metadados.
+
 ### Testado
-Em GLPI 10.0.26 local: a aba abre nos dois plugins, **salvar concede o direito de
-verdade** (perfil Técnico recebeu `plugin_servicereports`=READ e
-`plugin_managedservices`=READ|UPDATE via interface) e, com o direito zerado, os menus
-somem de "Ativos"/"Gerência" e **todas** as páginas de `front/` respondem "não
-autorizado".
+Em GLPI 10.0.26 local: a aba abre nos dois plugins e **salvar concede o direito de
+verdade** (perfil Técnico recebeu `plugin_managedservices`=READ|UPDATE e, depois,
+só `plugin_servicereports_analysts` — os outros dois ficaram em 0). Com o direito
+zerado, os menus somem de "Ativos"/"Gerência" e **todas** as páginas de `front/`
+respondem "não autorizado".
+
+Segmentação exercitada nas seis combinações (os três, cada um sozinho,
+Central+Analistas e nenhum): menu, submenu, cards da landing e acesso direto às
+páginas seguem o direito em todas elas. A **migração** foi testada com o direito
+antigo concedido a três perfis (Super-Admin, Técnico e Supervisor): os três saíram com
+os três direitos novos, os demais perfis em 0 e a linha antiga removida. A
+**instalação limpa** (desinstalar + instalar) cria as 24 linhas (8 perfis × 3) com só
+o Super-Admin liberado.
 
 ## [0.5.5] — 2026-08-28 (não lançado)
 

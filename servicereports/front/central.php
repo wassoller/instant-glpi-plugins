@@ -7,7 +7,11 @@ include('../../../inc/includes.php');
 
 global $CFG_GLPI;
 
-Session::checkRight('plugin_servicereports', READ);
+// A landing exige apenas **um** dos três blocos; a grade abaixo mostra só os
+// permitidos.
+if (!PluginServicereportsMenu::canView()) {
+    Html::displayRightError();
+}
 
 Html::header(
     PluginServicereportsMenu::getTypeName(),
@@ -19,7 +23,7 @@ Html::header(
 echo "<div class='container-fluid mt-3'>";
 echo "<div class='row row-cols-1 row-cols-md-3 g-3'>";
 
-foreach (PluginServicereportsMenu::getBlocks() as $key => $block) {
+foreach (PluginServicereportsMenu::getVisibleBlocks() as $key => $block) {
     $url = $CFG_GLPI['root_doc'] . '/plugins/servicereports/' . $block['page'];
     echo "<div class='col'>";
     echo "<a class='text-decoration-none text-reset' href='" . Html::cleanInputText($url) . "'>";

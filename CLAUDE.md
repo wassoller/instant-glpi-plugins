@@ -26,8 +26,11 @@ para a migração do GLPI da **Instant Tecnologia** para uma VM própria:
 - Classes **planas** `PluginManagedservicesX` / `PluginServicereportsX` em
   `inc/*.class.php` (autoload do GLPI 10). Tabelas `glpi_plugin_<key>_<classe_plural>`.
 - Páginas em `front/*.php` com `include('../../../inc/includes.php')`.
-- Direito por plugin registrado em `glpi_profilerights` (`plugin_managedservices`,
-  `plugin_servicereports`); Super-Admin recebe acesso total na instalação.
+- Direitos registrados em `glpi_profilerights`: **um** no `managedservices`
+  (`plugin_managedservices`, com a matriz padrão Ler/Atualizar/Criar/Expurgar) e
+  **três** no `servicereports`, um por bloco (`plugin_servicereports_central`,
+  `..._financial`, `..._analysts`, só **Ler**) — ver "Direitos do servicereports".
+  Super-Admin recebe tudo na instalação.
 
 ## Como desenvolver e **TESTAR** (não pule o teste real)
 
@@ -90,8 +93,9 @@ cd /tmp/instant-glpi-plugins && git pull && sudo cp -r managedservices servicere
 de plugins de quem já tem o plugin instalado — ou você atualiza a linha na mão
 (`UPDATE glpi_plugins SET author='…' WHERE directory IN ('managedservices','servicereports');`)
 ou sobe a versão, e aí o GLPI **desativa** o plugin e exige o processo de atualização.
-Instalação nova lê tudo do `setup.php`. (A versão dos dois plugins continua `0.1.0`,
-enquanto o CHANGELOG vai em 0.5.x — subir isso é faxina pendente, com esse efeito
+Instalação nova lê tudo do `setup.php`. (O **`servicereports` já está em `0.5.6`**,
+alinhado com o CHANGELOG, porque a migração dos direitos por bloco exigiu a subida; o
+**`managedservices` continua em `0.1.0`** — subir é faxina pendente, com esse efeito
 colateral em mente.)
 
 **Lição cara (2026-08-19):** três correções seguidas pareceram "não fazer efeito" porque
@@ -131,6 +135,34 @@ a tela não mudar, o suspeito seguinte é o **opcache** (`sudo systemctl restart
 - `CommonGLPI::display()` só checa o direito quando há **`id` na URL** — o formulário de
   criação (`form.php` sem id) abre para qualquer um. Nos `front/*.form.php`, faça o
   `check($id, READ)` / `check(-1, CREATE)` explícito, como nos formulários do core.
+
+## Direitos do `servicereports` (um por bloco)
+
+Cada bloco tem o **seu** direito, então um perfil pode ver só "Analistas", só a
+"Gestão financeira", etc. (pedido de 03/09; até a 0.5.5 era um direito só,
+`plugin_servicereports`, tudo ou nada).
+
+- A fonte da verdade é **`PluginServicereportsMenu::getBlocks()`**: cada bloco carrega
+  o seu `'right'`. Quem consome: o menu lateral (`getMenuContent()` usa
+  `getVisibleBlocks()`), a grade de cards em `front/central.php` e o
+  `Session::checkRight()` no topo de cada `front/*.php`. **Bloco novo = mais uma entrada
+  ali e mais um direito** em `PluginServicereportsMenu::rights()`; a matriz de perfis se
+  monta sozinha a partir do `getBlocks()`.
+- `PluginServicereportsMenu::canView()` é "**pelo menos um** dos três" — é o que decide
+  se a entrada "Relatórios" aparece em Gerência e se `central.php` abre.
+  `$rightname` da classe fica **vazio de propósito**: não existe um direito único que
+  responda pelo menu.
+- **Migração (`Profile::install()`)**: o GLPI chama a mesma função na atualização do
+  plugin, então ela é idempotente — lê quem tinha o direito antigo (**antes** de mexer
+  em qualquer coisa), registra só os direitos que faltam (`addProfileRights()` **não**
+  protege contra duplicata e a tabela tem `UNIQUE (profiles_id, name)`), copia o acesso
+  para os três e **apaga** o direito antigo. Instalação nova (sem o direito antigo) cai
+  no outro ramo e concede ao Super-Admin. **Não remova esse ramo de migração** enquanto
+  houver instalação em produção que ainda não passou pela 0.5.6.
+- Por causa disso a **versão do `servicereports` subiu para `0.5.6`** (o
+  `managedservices` continua em `0.1.0`): o GLPI só roda a atualização quando a versão
+  muda — e, ao mudar, **desativa o plugin** e exige o passo "Atualizar" na tela de
+  plugins (ou `plugin:install servicereports -f` + `plugin:activate` no console).
 
 ## Acoplamento
 
@@ -452,9 +484,10 @@ nunca paginam**; os formulários de filtro não enviam `start`, então filtrar v
 
 Traduções `.mo` (hoje os textos saem em pt-BR direto pelos `__()`), refino de ícones.
 Rebuild dos `dist/*.zip` antes do deploy (o `zip -rq dist/<plugin>.zip <plugin>` já é o
-suficiente; confira descompactando e comparando com a pasta do plugin). Subir a **versão**
-dos plugins (`0.1.0` nos `setup.php`, contra 0.5.x no CHANGELOG) — lembrando do efeito no
-`glpi_plugins` descrito em "Deploy em produção". O GLPI 11 nunca foi instalado numa **VM
+suficiente; confira descompactando e comparando com a pasta do plugin) — os que estão lá
+são de 28/08, anteriores à 0.5.6. Subir a **versão** do **`managedservices`** (ainda
+`0.1.0`, contra 0.5.x no CHANGELOG; o `servicereports` já foi para `0.5.6`) — lembrando
+do efeito no `glpi_plugins` descrito em "Deploy em produção". O GLPI 11 nunca foi instalado numa **VM
 real**, só validado local.
 
 **Paridade com o repo GLPI 11** (`instant-glpi11-plugins`): **em dia desde 2026-08-28**

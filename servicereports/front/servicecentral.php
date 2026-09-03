@@ -21,7 +21,7 @@ include('../../../inc/includes.php');
 
 global $CFG_GLPI;
 
-Session::checkRight('plugin_servicereports', READ);
+Session::checkRight(PluginServicereportsMenu::RIGHT_CENTRAL, READ);
 
 $base   = $CFG_GLPI['root_doc'] . '/plugins/servicereports/front/servicecentral.php';
 $tab    = ($_GET['tab'] ?? 'dashboard') === 'relatorios' ? 'relatorios' : 'dashboard';

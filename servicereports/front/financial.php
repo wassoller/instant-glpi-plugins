@@ -12,7 +12,7 @@ include('../../../inc/includes.php');
 
 global $CFG_GLPI;
 
-Session::checkRight('plugin_servicereports', READ);
+Session::checkRight(PluginServicereportsMenu::RIGHT_FINANCIAL, READ);
 
 $base   = $CFG_GLPI['root_doc'] . '/plugins/servicereports/front/financial.php';
 $tab    = ($_GET['tab'] ?? 'dashboards') === 'relatorios' ? 'relatorios' : 'dashboards';

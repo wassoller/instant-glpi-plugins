@@ -7,7 +7,7 @@ include('../../../inc/includes.php');
 
 global $CFG_GLPI;
 
-Session::checkRight('plugin_servicereports', READ);
+Session::checkRight(PluginServicereportsMenu::RIGHT_ANALYSTS, READ);
 
 $tab      = $_GET['tab'] ?? 'tecnicos';
 $report   = (int) ($_GET['report'] ?? 0);

@@ -130,7 +130,15 @@ Se houver mudança de estrutura de banco, rode a atualização do plugin em
   `REPO` do passo 1 no clone **e** na cópia.
 - **"Não aparece o menu."** Confirme que o plugin está *Ativado* em
   Configuração > Plugins e que o seu perfil tem o direito do plugin
-  (o Super-Admin recebe acesso total automaticamente na instalação).
+  (o Super-Admin recebe acesso total automaticamente na instalação). Os direitos
+  ficam em **Administração > Perfis > _(o perfil)_**, nas abas *Serviços
+  Gerenciados* e *Relatórios*. Em "Relatórios" há **uma linha por bloco**
+  (Central de serviços, Gestão financeira, Analistas): dá para liberar só um.
+  Um perfil sem nenhum dos três não vê a entrada "Relatórios" em Gerência.
+- **"Atualizei os arquivos e o plugin apareceu desativado."** Esperado quando a
+  **versão** do plugin muda (foi o caso do `servicereports` na 0.5.6): o GLPI
+  exige o botão *Atualizar* em Configuração > Plugins e só então reativa. É
+  nesse passo que a migração dos direitos por bloco roda.
 - **Versão errada do GLPI.** Cada repositório é específico: use o de GLPI 10
   num GLPI 10 e o de GLPI 11 num GLPI 11. O plugin recusa a instalação fora da
   faixa suportada.

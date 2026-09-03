@@ -37,6 +37,24 @@
   - Ao portar, repita o teste de ponta a ponta: abrir a aba num perfil, **salvar**,
     conferir `glpi_profilerights` e depois zerar o direito e ver menu sumido + `front/`
     negando.
+- **03/09 — acesso por bloco no `servicereports`** (mesmo commit acima é o pré-requisito;
+  este vem logo depois). O direito único virou **três**
+  (`plugin_servicereports_central` / `_financial` / `_analysts`, só `READ`):
+  - `Menu` (lá `src/Menu.php`) ganha as constantes `RIGHT_*` e `RIGHT_LEGACY`, o
+    helper `rights()`, `getVisibleBlocks()`, um `'right'` por bloco em `getBlocks()`,
+    `canView()` = "pelo menos um" e `$rightname = ''`.
+  - `Profile::install()` monta a matriz a partir do `getBlocks()` e faz a **migração**:
+    lê quem tinha o direito antigo (>0) **antes** de mexer, adiciona só os direitos que
+    faltam, copia o acesso para os três e apaga o antigo; o ramo "instalação nova"
+    concede ao Super-Admin. Idempotente, porque o GLPI chama a mesma `install()` na
+    atualização.
+  - `front/central.php` filtra os cards e usa `Menu::canView()`; os outros três
+    `front/*.php` checam o direito do seu bloco.
+  - **A versão lá também tem de subir** (o repo 11 está em 0.5.0): sem isso o GLPI não
+    roda a atualização e a migração dos direitos nunca acontece.
+  - Teste: as seis combinações de direito (três, cada um sozinho, dois e nenhum) contra
+    menu + submenu + cards + acesso direto; a migração com o direito antigo em vários
+    perfis; e uma instalação limpa.
 
 Ao acrescentar um item aqui, copie o formato dos que estão em "Já portado": o que mudou,
 em que arquivos, e as regras que não dá para adivinhar lendo o código.

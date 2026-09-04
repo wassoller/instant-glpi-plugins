@@ -94,7 +94,7 @@ de plugins de quem já tem o plugin instalado — ou você atualiza a linha na m
 (`UPDATE glpi_plugins SET author='…' WHERE directory IN ('managedservices','servicereports');`)
 ou sobe a versão, e aí o GLPI **desativa** o plugin e exige o processo de atualização.
 Instalação nova lê tudo do `setup.php`. (Desde 03/09 **os dois plugins estão em
-`0.5.6`**, alinhados com o CHANGELOG: a migração dos direitos por bloco exigiu a subida
+`0.5.8`**, alinhados com o CHANGELOG: a migração dos direitos por bloco exigiu a subida
 no `servicereports`, e o `managedservices` foi junto — o que, de brinde, faz o campo
 `author` finalmente aparecer sem `UPDATE` manual. Da próxima vez que subir a versão,
 lembre do efeito colateral: o GLPI desativa o plugin e exige o passo "Atualizar".)
@@ -160,10 +160,37 @@ Cada bloco tem o **seu** direito, então um perfil pode ver só "Analistas", só
   para os três e **apaga** o direito antigo. Instalação nova (sem o direito antigo) cai
   no outro ramo e concede ao Super-Admin. **Não remova esse ramo de migração** enquanto
   houver instalação em produção que ainda não passou pela 0.5.6.
-- Por causa disso a **versão do `servicereports` subiu para `0.5.6`** (o
-  `managedservices` continua em `0.1.0`): o GLPI só roda a atualização quando a versão
-  muda — e, ao mudar, **desativa o plugin** e exige o passo "Atualizar" na tela de
+- Por causa disso a **versão do `servicereports` subiu** (hoje os dois estão em
+  `0.5.8`): o GLPI só roda a atualização quando a versão muda — e, ao mudar, **desativa o plugin** e exige o passo "Atualizar" na tela de
   plugins (ou `plugin:install servicereports -f` + `plugin:activate` no console).
+
+## Separação por entidade nas abas do serviço (regra de ouro nº 2)
+
+O GLPI é **multi-entidade** e a Instant atende vários clientes no mesmo GLPI: o direito
+`plugin_managedservices` diz *se* a pessoa mexe em serviço gerenciado, **não em qual**.
+
+- **`Session::checkRight()` sozinho num handler de aba é bug de segurança.** Toda escrita
+  passa por **`PluginManagedservicesManagedservice::checkService($sid, $right)`** — que é o
+  `check()` do core e aplica direito **e** entidade — ou, quando a operação endereça uma
+  **linha filha**, por **`checkChild($obj, $id, $right, $fk)`**, que carrega a linha e tira
+  o serviço-pai **do banco**. Nunca confie no id de serviço que veio no POST junto do id da
+  linha: são dois valores independentes e o atacante controla os dois.
+- Em 03/09 isso foi **explorado** no ambiente local: sessão restrita a uma entidade apagou
+  o valor financeiro de um serviço de outra, via `POST` direto no
+  `financialvalue.form.php`. O objeto **pai** já estava protegido — o buraco eram as cinco
+  abas.
+- **Tabela filha precisa de `entities_id`.** Sem a coluna, `isEntityAssign()` devolve
+  `false` e o core **não restringe nada** — inclusive a **API REST**, que lista a tabela
+  inteira para qualquer entidade. As 5 filhas ganharam `entities_id`/`is_recursive` como
+  **espelho** do serviço: `stampEntity()` carimba em toda escrita
+  (`prepareInputForAdd/Update`), `post_updateItem()` do pai propaga quando o serviço muda
+  de entidade, e `inheritEntity()` faz a migração no `install()` (idempotente, roda também
+  na atualização). A fonte da verdade continua sendo o serviço — se um dia divergirem,
+  reinstale/atualize o plugin e o `inheritEntity()` ressincroniza.
+- **Como testar** (é o teste que pegou o bug): duas entidades irmãs com um serviço cada,
+  `devlogin.php?entity=<A>`, e um `POST` com o id do objeto de **B**. Tem de dar "Acesso
+  negado" nas cinco operações — apagar valor, criar valor, trocar gerentes, trocar NMS,
+  expurgar ativo coberto — e o dado de B tem de continuar lá.
 
 ## Escape de saída (regra de ouro, aprendida com um XSS real)
 
@@ -517,15 +544,15 @@ Traduções `.mo` (hoje os textos saem em pt-BR direto pelos `__()`) e refino de
 **os dois deliberadamente adiados**: a interface é entregue em pt-BR e os `.mo` só
 importam quando alguém usar o GLPI em outro idioma.
 Rebuild dos `dist/*.zip` antes do deploy (`zip -rq dist/<plugin>.zip <plugin>`; confira
-descompactando e comparando com a pasta do plugin — os do repo são da 0.5.6, 03/09). O
+descompactando e comparando com a pasta do plugin — os do repo são da 0.5.8, 03/09). O
 `docs/INSTALL.pdf` sai do `INSTALL.md` por
 **`python3 tools/build-install-pdf.py docs/INSTALL.md docs/INSTALL.pdf`** (ReportLab; o
 script cobre só o Markdown que o guia usa — recurso novo, ajuste lá). As **versões** dos
-dois plugins já estão alinhadas com o CHANGELOG (`0.5.6`). O GLPI 11 nunca foi instalado numa **VM
+dois plugins já estão alinhadas com o CHANGELOG (`0.5.8`). O GLPI 11 nunca foi instalado numa **VM
 real**, só validado local.
 
 **Paridade com o repo GLPI 11** (`instant-glpi11-plugins`): **em dia desde 2026-09-03**,
-e agora os **dois repos usam o mesmo número de versão** (`0.5.6`) — mesmo número, mesmo
+e agora os **dois repos usam o mesmo número de versão** (`0.5.8`) — mesmo número, mesmo
 conjunto de funcionalidades, validado no GLPI 11.0.8. Na leva de 03/09 foram a correção
 da aba de direitos e o acesso por bloco; antes disso (28/08, 0.5.0 lá) o "Relatório de
 atualização - Cliente" (ids 2 e 3), o 2º gráfico do 61, o "Chamados por grupo" e o

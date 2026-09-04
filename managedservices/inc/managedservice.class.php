@@ -267,6 +267,115 @@ class PluginManagedservicesManagedservice extends CommonDBTM
     /**
      * Criação da tabela na instalação.
      */
+    // =====================================================================
+    //  Guarda de acesso das abas (entidade + direito)
+    // =====================================================================
+
+    /**
+     * Exige o direito `$right` **no serviço**, não só no plugin.
+     *
+     * `CommonDBTM::check()` carrega o registro e aplica a checagem de entidade do
+     * core — morre com "Acesso negado" se o serviço não for visível na sessão.
+     * O direito global do plugin **não** separa cliente de cliente: sem isto,
+     * quem administra a entidade A altera contrato da entidade B mandando o id
+     * dela no formulário (confirmado em 03/09).
+     */
+    public static function checkService($sid, $right)
+    {
+        $ms = new self();
+        $ms->check((int) $sid, $right);
+        return $ms;
+    }
+
+    /**
+     * Idem, a partir do **id da linha filha**: o serviço-pai vem do banco, nunca
+     * do formulário — senão o atacante manda o id da linha de um cliente junto do
+     * id do serviço do outro e a checagem valida o serviço errado.
+     */
+    public static function checkChild(CommonDBTM $child, $id, $right, $fk)
+    {
+        $id = (int) $id;
+        if ($id <= 0 || !$child->getFromDB($id)) {
+            Html::displayRightError();
+        }
+        return self::checkService($child->fields[$fk] ?? 0, $right);
+    }
+
+    /**
+     * Copia entidade do serviço para o input de uma linha filha.
+     *
+     * As tabelas filhas têm `entities_id`/`is_recursive` **só** para o core saber
+     * restringir (`isEntityAssign()`); a fonte da verdade continua sendo o serviço.
+     */
+    public static function stampEntity(array $input, $fk)
+    {
+        $sid = (int) ($input[$fk] ?? 0);
+        if ($sid > 0) {
+            $ms = new self();
+            if ($ms->getFromDB($sid)) {
+                $input['entities_id'] = (int) $ms->fields['entities_id'];
+                $input['is_recursive'] = (int) $ms->fields['is_recursive'];
+            }
+        }
+        return $input;
+    }
+
+    /**
+     * Acrescenta `entities_id`/`is_recursive` a uma tabela filha e (re)sincroniza
+     * a partir do serviço. Chamado pelo `install()` de cada filha — roda também na
+     * atualização do plugin, por isso é idempotente.
+     */
+    public static function inheritEntity(Migration $migration, $table, $fk)
+    {
+        global $DB;
+
+        if (!$DB->tableExists($table)) {
+            return;
+        }
+        if (!$DB->fieldExists($table, 'entities_id')) {
+            $DB->doQuery("ALTER TABLE `$table`
+                ADD `entities_id` int unsigned NOT NULL DEFAULT 0,
+                ADD `is_recursive` tinyint NOT NULL DEFAULT 0,
+                ADD KEY `entities_id` (`entities_id`)");
+        }
+        $parent = self::getTable();
+        $DB->doQuery("UPDATE `$table` c
+            INNER JOIN `$parent` p ON p.id = c.`$fk`
+            SET c.entities_id = p.entities_id, c.is_recursive = p.is_recursive");
+    }
+
+    /** Serviço mudou de entidade: as linhas filhas acompanham. */
+    public function post_updateItem($history = 1)
+    {
+        global $DB;
+
+        if (!in_array('entities_id', $this->updates, true)
+            && !in_array('is_recursive', $this->updates, true)) {
+            return;
+        }
+        $ent = (int) $this->fields['entities_id'];
+        $rec = (int) $this->fields['is_recursive'];
+        $sid = (int) $this->fields['id'];
+        foreach (self::childTables() as $table => $fk) {
+            if ($DB->tableExists($table) && $DB->fieldExists($table, 'entities_id')) {
+                $DB->doQuery("UPDATE `$table` SET entities_id = $ent, is_recursive = $rec
+                              WHERE `$fk` = $sid");
+            }
+        }
+    }
+
+    /** @return array<string,string> tabela filha => nome da FK para o serviço. */
+    public static function childTables()
+    {
+        return [
+            PluginManagedservicesManager::getTable()        => PluginManagedservicesManager::FK,
+            PluginManagedservicesCoveredasset::getTable()   => PluginManagedservicesCoveredasset::FK,
+            PluginManagedservicesComposition::getTable()    => PluginManagedservicesComposition::FK,
+            PluginManagedservicesFinancialvalue::getTable() => PluginManagedservicesFinancialvalue::FK,
+            PluginManagedservicesNmsconfig::getTable()      => PluginManagedservicesNmsconfig::FK,
+        ];
+    }
+
     public static function install(Migration $migration)
     {
         global $DB;

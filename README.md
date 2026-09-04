@@ -114,7 +114,7 @@ Guia completo em [docs/INSTALL.md](docs/INSTALL.md) (e `docs/INSTALL.pdf`). Resu
   desde 2026-09-03, com o **mesmo número de versão** nos dois repos); **pendente** as traduções `.mo` (os textos já saem
   em pt-BR via `__()`), o refino de ícones e instalar a versão GLPI 11 numa **VM real** —
   ela só foi validada em ambiente local. As **versões** dos dois plugins já estão em
-  `0.5.6`, alinhadas com o CHANGELOG, e os `dist/*.zip` e o `INSTALL.pdf` foram regerados
+  `0.5.8`, alinhadas com o CHANGELOG, e os `dist/*.zip` e o `INSTALL.pdf` foram regerados
   em 03/09.
 
 Também disponível: **port para GLPI 11** no repositório `instant-glpi11-plugins`.

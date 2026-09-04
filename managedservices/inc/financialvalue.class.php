@@ -277,6 +277,16 @@ class PluginManagedservicesFinancialvalue extends CommonDBTM
         }
     }
 
+    public function prepareInputForAdd($input)
+    {
+        return PluginManagedservicesManagedservice::stampEntity($input, self::FK);
+    }
+
+    public function prepareInputForUpdate($input)
+    {
+        return PluginManagedservicesManagedservice::stampEntity($input, self::FK);
+    }
+
     public static function install(Migration $migration)
     {
         global $DB;
@@ -304,6 +314,10 @@ class PluginManagedservicesFinancialvalue extends CommonDBTM
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC";
             $DB->doQuery($query);
         }
+
+        // Herda a entidade do serviço: sem `entities_id` na tabela o core
+        // devolve isEntityAssign()=false e NÃO restringe nada (API REST inclusa).
+        PluginManagedservicesManagedservice::inheritEntity($migration, $table, self::FK);
     }
 
     public static function uninstall(Migration $migration)

@@ -4,6 +4,61 @@ Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/).
 Alvo: **GLPI 10.0.x** (validado em 10.0.26). A versão para GLPI 11 tem changelog
 próprio no repositório `instant-glpi11-plugins`.
 
+## [0.5.8] — 2026-09-03 (não lançado)
+
+Correção de segurança **multi-entidade** no `managedservices`, a partir de um scan
+externo cujas duas conclusões se confirmaram. **Muda o schema** das 5 tabelas filhas —
+a atualização do plugin é obrigatória (ver "Alterado").
+
+### Segurança
+- **Alta — escrita entre entidades nas abas do serviço.** `manager.form.php`,
+  `nmsconfig.form.php`, `financialvalue.form.php`, `composition.form.php` e
+  `coveredasset.form.php` checavam **só o direito global do plugin** e agiam sobre o id
+  recebido no formulário, sem validar a que serviço/entidade ele pertence. **Explorado no
+  ambiente local**: com a sessão restrita à entidade *Uniletra*, um `POST` para
+  `financialvalue.form.php` com `delete_value=1&id=<id de outro cliente>` **apagou o valor
+  financeiro de um serviço de outra entidade** — e o mesmo valia para gerentes, NMS,
+  composição e ativos cobertos. Curiosamente o objeto **pai** já era protegido (abrir o
+  serviço de outra entidade dava "Acesso negado"): o buraco eram as abas.
+  Agora toda operação passa por **`Managedservice::checkService()`** (o `check()` do core,
+  que aplica direito **e** entidade) e, nas que endereçam uma linha filha, por
+  **`checkChild()`**, que lê o serviço-pai **do banco** — nunca do formulário, senão bastava
+  mandar o id da linha de um cliente com o id do serviço de outro.
+- **Alta — leitura entre entidades (API REST).** Nenhuma das 5 tabelas filhas tinha
+  `entities_id`, então `isEntityAssign()` devolvia `false` e **o core não aplicava
+  restrição nenhuma** — com a API REST habilitada, um usuário de uma entidade lia os
+  valores financeiros, gerentes e NMS de todas as outras. As tabelas ganharam
+  `entities_id`/`is_recursive`, herdados do serviço: `isEntityAssign()` passou a devolver
+  `true` nas seis classes, e com isso valem a API, o `Search` e o `can()` do core.
+  Os campos são **espelho** — a fonte da verdade continua sendo o serviço:
+  `prepareInputForAdd/Update` carimbam a entidade do pai em toda escrita, e
+  `Managedservice::post_updateItem()` propaga para as filhas quando o serviço **muda de
+  entidade** (testado).
+- `Profile::install()` do `managedservices` ganhou a guarda contra duplicata que o
+  `servicereports` já tinha — sem ela a atualização cuspia
+  `Duplicate entry '1-plugin_managedservices'`.
+
+### Alterado
+- **Versão dos dois plugins de `0.5.6` para `0.5.8`.** No `managedservices` é
+  **obrigatória**: é na atualização que a migração `inheritEntity()` roda (acrescenta as
+  colunas e preenche a partir do serviço; idempotente). O `servicereports` acompanha para
+  os dois repositórios seguirem no mesmo número. **No deploy o GLPI desativa os dois e
+  exige o passo "Atualizar"** — `managedservices` primeiro.
+
+### Testado
+GLPI 10.0.26 e GLPI 11.0.8, com dois clientes em entidades irmãs. Antes: o ataque
+apagava o dado do vizinho. Depois: as **cinco** operações (apagar valor, criar valor,
+trocar gerentes, trocar NMS, expurgar ativo coberto) respondem "Acesso negado" e os dados
+do outro cliente ficam intactos — enquanto o fluxo legítimo (sessão que enxerga o serviço)
+continua gravando. Conferido também que as **5 abas** do serviço e os relatórios
+financeiros do `servicereports` (que leem essas tabelas por SQL cru) seguem funcionando, e
+que mover o serviço de entidade leva as linhas filhas junto.
+
+### Ressalva honesta
+Este achado veio de um **scan externo**, não da minha revisão — que na véspera tinha
+olhado SQL, escape e direitos e **não** olhou separação por entidade nas abas. Vale como
+evidência de que a auditoria do próprio autor tem ponto cego.
+
 ## [0.5.7] — 2026-09-03 (não lançado)
 
 Correção de segurança (XSS armazenado) e reforço do escape de saída. Sem mudança de

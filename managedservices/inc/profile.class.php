@@ -78,7 +78,12 @@ class PluginManagedservicesProfile extends Profile
     {
         global $DB;
 
-        ProfileRight::addProfileRights([self::RIGHT]);
+        // addProfileRights() não protege contra duplicata (a tabela tem UNIQUE
+        // (profiles_id, name)) e o GLPI chama este install() de novo na atualização
+        // do plugin — sem a guarda, a atualização cospe "Duplicate entry".
+        if (!isset(ProfileRight::getAllPossibleRights()[self::RIGHT])) {
+            ProfileRight::addProfileRights([self::RIGHT]);
+        }
 
         // Perfil Super-Admin padrão (id 4) recebe acesso total.
         $DB->update(

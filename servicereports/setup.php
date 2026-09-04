@@ -9,7 +9,7 @@
  * -------------------------------------------------------------------------
  */
 
-define('PLUGIN_SERVICEREPORTS_VERSION', '0.5.6');
+define('PLUGIN_SERVICEREPORTS_VERSION', '0.5.8');
 define('PLUGIN_SERVICEREPORTS_MIN_GLPI', '10.0.0');
 define('PLUGIN_SERVICEREPORTS_MAX_GLPI', '10.0.99');
 

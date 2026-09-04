@@ -6,9 +6,12 @@
 include('../../../inc/includes.php');
 
 $obj = new PluginManagedservicesCoveredasset();
+$fk  = PluginManagedservicesCoveredasset::FK;
 
+// O direito global do plugin não separa entidade: cada operação é validada
+// contra o SERVIÇO, e nas exclusões o serviço vem do banco, não do formulário.
 if (isset($_POST['add'])) {
-    Session::checkRight('plugin_managedservices', UPDATE);
+    PluginManagedservicesManagedservice::checkService($_POST[$fk] ?? 0, UPDATE);
     $itemtype = $_POST['itemtype'] ?? '';
     $items_id = (int) ($_POST['items_id'] ?? 0);
     if ($itemtype === '' || $itemtype === '0' || $items_id <= 0) {
@@ -23,13 +26,13 @@ if (isset($_POST['add'])) {
         ]);
     }
 } elseif (isset($_POST['softdelete'])) {
-    Session::checkRight('plugin_managedservices', UPDATE);
+    PluginManagedservicesManagedservice::checkChild($obj, $_POST['id'] ?? 0, UPDATE, $fk);
     $obj->update(['id' => (int) $_POST['id'], 'is_deleted' => 1]);
 } elseif (isset($_POST['restore'])) {
-    Session::checkRight('plugin_managedservices', UPDATE);
+    PluginManagedservicesManagedservice::checkChild($obj, $_POST['id'] ?? 0, UPDATE, $fk);
     $obj->update(['id' => (int) $_POST['id'], 'is_deleted' => 0]);
 } elseif (isset($_POST['purge'])) {
-    Session::checkRight('plugin_managedservices', PURGE);
+    PluginManagedservicesManagedservice::checkChild($obj, $_POST['id'] ?? 0, PURGE, $fk);
     $obj->delete(['id' => (int) $_POST['id']], 1);
 }
 

@@ -8,6 +8,12 @@ include('../../../inc/includes.php');
 global $CFG_GLPI;
 
 Session::checkRight(PluginServicereportsMenu::RIGHT_ANALYSTS, READ);
+// Estes relatórios expõem chamado a chamado (título, requerente, conteúdo de tarefa,
+// autor). Quem os abre precisa poder ver **todos** os chamados da entidade — senão um
+// perfil que só enxerga os próprios chamados leria os dos outros pelo relatório.
+// Se alguém legítimo passar a receber "Acesso negado" aqui, o ajuste é dar
+// "Ver todos os chamados" ao perfil, não remover esta linha.
+Session::checkRight('ticket', Ticket::READALL);
 
 $tab      = $_GET['tab'] ?? 'tecnicos';
 $report   = (int) ($_GET['report'] ?? 0);
@@ -29,12 +35,11 @@ if (($_GET['export'] ?? '') === 'csv' && $tab === 'relatorios' && in_array($repo
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // BOM p/ acentos no Excel
-    $dec = static fn ($v) => html_entity_decode((string) $v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     if ($report === 57) {
         $data = PluginServicereportsAnalysts::getTasksReport($startDt, $endDt, $techId, $ticketId);
-        fputcsv($out, ['Chamado', 'Autor', 'Entidade', 'Data', 'Categoria', 'Descrição', 'Técnico', 'Início', 'Fim', 'Duração'], ';', '"', '');
+        PluginServicereportsCsv::row($out, ['Chamado', 'Autor', 'Entidade', 'Data', 'Categoria', 'Descrição', 'Técnico', 'Início', 'Fim', 'Duração']);
         foreach ($data['rows'] as $r) {
-            fputcsv($out, array_map($dec, [
+            PluginServicereportsCsv::row($out, [
                 (int) $r['tickets_id'],
                 getUserName((int) $r['author']),
                 Dropdown::getDropdownName('glpi_entities', (int) $r['entities_id']),
@@ -45,7 +50,7 @@ if (($_GET['export'] ?? '') === 'csv' && $tab === 'relatorios' && in_array($repo
                 $r['begin'],
                 $r['end'],
                 PluginServicereportsAnalysts::secToHms((int) $r['actiontime']),
-            ]), ';', '"', '');
+            ]);
         }
     } elseif ($report === 60) {
         // Matriz analista × entidade: mesma tabela da tela, sem paginação.
@@ -56,73 +61,73 @@ if (($_GET['export'] ?? '') === 'csv' && $tab === 'relatorios' && in_array($repo
             $header[] = $m['entities'][$entId]['name'];
         }
         $header[] = 'Total';
-        fputcsv($out, array_map($dec, $header), ';', '"', '');
+        PluginServicereportsCsv::row($out, $header);
         foreach ($m['rows'] as $row) {
             $line = [$row['name']];
             foreach ($entCols as $entId) {
                 $line[] = PluginServicereportsAnalysts::secToHms((int) ($row['cells'][$entId] ?? 0));
             }
             $line[] = PluginServicereportsAnalysts::secToHms((int) $row['total']);
-            fputcsv($out, array_map($dec, $line), ';', '"', '');
+            PluginServicereportsCsv::row($out, $line);
         }
         $line = ['Total'];
         foreach ($entCols as $entId) {
             $line[] = PluginServicereportsAnalysts::secToHms((int) ($m['totals'][$entId] ?? 0));
         }
         $line[] = PluginServicereportsAnalysts::secToHms((int) $m['grand']);
-        fputcsv($out, array_map($dec, $line), ';', '"', '');
+        PluginServicereportsCsv::row($out, $line);
         // Última linha: o período solicitado no filtro (mesma informação da tela).
-        fputcsv($out, array_map($dec, ['Período do relatório', $periodLabel]), ';', '"', '');
+        PluginServicereportsCsv::row($out, ['Período do relatório', $periodLabel]);
     } elseif ($report === 61) {
         // Duas seções, separadas por linha em branco (mesma convenção do CSV do
         // relatório central de serviços): técnico × status e técnico × tipo.
         // Nenhuma delas pagina — são as mesmas tabelas da tela.
-        $section = static function (array $d, string $title) use ($out, $dec) {
-            fputcsv($out, [$dec($title)], ';', '"', '');
+        $section = static function (array $d, string $title) use ($out) {
+            PluginServicereportsCsv::row($out, [$title]);
             $header = ['Técnico'];
             foreach ($d['keys'] as $k) {
                 $header[] = $d['labels'][$k];
             }
             $header[] = 'Total';
-            fputcsv($out, array_map($dec, $header), ';', '"', '');
+            PluginServicereportsCsv::row($out, $header);
             foreach ($d['rows'] as $row) {
                 $line = [$row['name']];
                 foreach ($d['keys'] as $k) {
                     $line[] = (int) ($row['counts'][$k] ?? 0);
                 }
                 $line[] = (int) $row['total'];
-                fputcsv($out, array_map($dec, $line), ';', '"', '');
+                PluginServicereportsCsv::row($out, $line);
             }
             $line = ['Total'];
             foreach ($d['keys'] as $k) {
                 $line[] = (int) ($d['totals'][$k] ?? 0);
             }
             $line[] = (int) $d['grand'];
-            fputcsv($out, array_map($dec, $line), ';', '"', '');
+            PluginServicereportsCsv::row($out, $line);
         };
 
         $section(
             PluginServicereportsAnalysts::getStatusByTechnician($startDt, $endDt, $techId),
             'Chamados por status e técnico'
         );
-        fputcsv($out, [''], ';', '"', '');
+        PluginServicereportsCsv::row($out, ['']);
         $section(
             PluginServicereportsAnalysts::getTypeByTechnician($startDt, $endDt, $techId),
             'Chamados por tipo e técnico'
         );
-        fputcsv($out, [''], ';', '"', '');
-        fputcsv($out, array_map($dec, ['Período do relatório', $periodLabel]), ';', '"', '');
+        PluginServicereportsCsv::row($out, ['']);
+        PluginServicereportsCsv::row($out, ['Período do relatório', $periodLabel]);
     } else {
         $rows = PluginServicereportsAnalysts::getOutOfHoursReport($startDt, $endDt, $techId, $ticketId);
-        fputcsv($out, ['Técnico', 'ID do chamado', 'Tempo total de tarefas', 'Tempo fora do expediente', 'Entidade'], ';', '"', '');
+        PluginServicereportsCsv::row($out, ['Técnico', 'ID do chamado', 'Tempo total de tarefas', 'Tempo fora do expediente', 'Entidade']);
         foreach ($rows as $r) {
-            fputcsv($out, array_map($dec, [
+            PluginServicereportsCsv::row($out, [
                 getUserName((int) $r['tech']),
                 (int) $r['tickets_id'],
                 PluginServicereportsAnalysts::secToHms((int) $r['total']),
                 PluginServicereportsAnalysts::secToHms((int) $r['outside']),
                 Dropdown::getDropdownName('glpi_entities', (int) $r['entities_id']),
-            ]), ';', '"', '');
+            ]);
         }
     }
     fclose($out);

@@ -13,6 +13,12 @@ include('../../../inc/includes.php');
 global $CFG_GLPI;
 
 Session::checkRight(PluginServicereportsMenu::RIGHT_FINANCIAL, READ);
+// Estes relatórios expõem chamado a chamado (título, requerente, conteúdo de tarefa,
+// autor). Quem os abre precisa poder ver **todos** os chamados da entidade — senão um
+// perfil que só enxerga os próprios chamados leria os dos outros pelo relatório.
+// Se alguém legítimo passar a receber "Acesso negado" aqui, o ajuste é dar
+// "Ver todos os chamados" ao perfil, não remover esta linha.
+Session::checkRight('ticket', Ticket::READALL);
 
 $base   = $CFG_GLPI['root_doc'] . '/plugins/servicereports/front/financial.php';
 $tab    = ($_GET['tab'] ?? 'dashboards') === 'relatorios' ? 'relatorios' : 'dashboards';
@@ -41,30 +47,29 @@ if ($available && $tab === 'relatorios' && ($_GET['export'] ?? '') === 'csv' && 
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // BOM p/ acentos no Excel
-    $dec = static fn ($v) => html_entity_decode((string) $v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     $m   = static fn (float $v) => number_format($v, 2, ',', '.');
 
     $extrato = PluginServicereportsFinancial::getExtrato($startDt, $endDt);
     if ($report === 1) {
-        fputcsv($out, ['Entidade', 'Serviço', 'Valor mensal', 'Valor ativos', 'Valor categoria', 'Valor extras', 'Tempo tarefas', 'Valor tarefas', 'Valor total'], ';', '"', '');
+        PluginServicereportsCsv::row($out, ['Entidade', 'Serviço', 'Valor mensal', 'Valor ativos', 'Valor categoria', 'Valor extras', 'Tempo tarefas', 'Valor tarefas', 'Valor total']);
         foreach ($extrato as $ent) {
             foreach ($ent['services'] as $svc) {
-                fputcsv($out, array_map($dec, [
+                PluginServicereportsCsv::row($out, [
                     $ent['name'], $svc['name'], $m($svc['mensal']), $m($svc['ativos']),
                     $m($svc['categoria']), $m($svc['extras']),
                     PluginServicereportsFinancial::hms((int) $svc['task_seconds']),
                     $m($svc['task_value']), $m($svc['total']),
-                ]), ';', '"', '');
+                ]);
             }
         }
     } else { // 2 — faturamento por entidade
-        fputcsv($out, ['Entidade', 'Valor total faturado'], ';', '"', '');
+        PluginServicereportsCsv::row($out, ['Entidade', 'Valor total faturado']);
         $geral = 0.0;
         foreach ($extrato as $ent) {
             $geral += $ent['summary']['total'];
-            fputcsv($out, array_map($dec, [$ent['name'], $m($ent['summary']['total'])]), ';', '"', '');
+            PluginServicereportsCsv::row($out, [$ent['name'], $m($ent['summary']['total'])]);
         }
-        fputcsv($out, array_map($dec, ['TOTAL GERAL', $m($geral)]), ';', '"', '');
+        PluginServicereportsCsv::row($out, ['TOTAL GERAL', $m($geral)]);
     }
     fclose($out);
     exit;

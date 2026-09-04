@@ -32,6 +32,24 @@ class PluginServicereportsAnalysts
     }
 
     /**
+     * Recorte de **tarefa privada**, na regra do core (`TicketTask::canViewItem`):
+     * quem tem o direito `task` / *Ver as privadas* enxerga todas; os demais só as
+     * públicas e as próprias.
+     *
+     * Sem isto o relatório exibia (na tela e no CSV) o conteúdo de tarefa privada de
+     * qualquer chamado da entidade — que é justamente onde vai a anotação interna.
+     * Vale para **todas** as consultas sobre `glpi_tickettasks` deste plugin.
+     */
+    public static function privateTaskRestrict(string $alias = 'tt'): string
+    {
+        if (Session::haveRight(TicketTask::$rightname, CommonITILTask::SEEPRIVATE)) {
+            return '';
+        }
+        $me = (int) Session::getLoginUserID();
+        return " AND ($alias.is_private = 0 OR $alias.users_id = $me)";
+    }
+
+    /**
      * Técnicos com atividade (atribuídos ou com tarefas) no período.
      * Usado para montar os cartões de performance — o dropdown de filtro lista
      * **todos** os técnicos do GLPI (User::dropdown com o direito own_ticket).
@@ -44,12 +62,13 @@ class PluginServicereportsAnalysts
         $s = $DB->escape($start);
         $e = $DB->escape($end);
         $ent = getEntitiesRestrictRequest('AND', 'glpi_tickets');
+        $priv = self::privateTaskRestrict();
         $sql = "SELECT DISTINCT u.id, u.name, u.realname, u.firstname
                 FROM glpi_users u
                 WHERE u.id IN (
                     SELECT tt.users_id_tech FROM glpi_tickettasks tt
                     INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tt.tickets_id AND glpi_tickets.is_deleted=0
-                    WHERE tt.users_id_tech>0 AND tt.date BETWEEN '$s' AND '$e' $ent
+                    WHERE tt.users_id_tech>0 AND tt.date BETWEEN '$s' AND '$e' $ent$priv
                     UNION
                     SELECT tu.users_id FROM glpi_tickets_users tu
                     INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tu.tickets_id AND glpi_tickets.is_deleted=0
@@ -99,6 +118,7 @@ class PluginServicereportsAnalysts
         $s = $DB->escape($start);
         $e = $DB->escape($end);
         $ent = getEntitiesRestrictRequest('AND', 'glpi_tickets');
+        $priv = self::privateTaskRestrict();
 
         // Técnico escolhido no filtro aparece mesmo sem atividade no período
         // (o dropdown lista todos os técnicos do GLPI, não só os do período).
@@ -130,7 +150,7 @@ class PluginServicereportsAnalysts
         foreach ($DB->request("SELECT tt.users_id_tech tech, SUM(tt.actiontime) worked
              FROM glpi_tickettasks tt
              INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tt.tickets_id AND glpi_tickets.is_deleted=0
-             WHERE tt.users_id_tech IN ($ids) AND tt.date BETWEEN '$s' AND '$e' $ent
+             WHERE tt.users_id_tech IN ($ids) AND tt.date BETWEEN '$s' AND '$e' $ent$priv
              GROUP BY tt.users_id_tech") as $r) {
             $perf[(int) $r['tech']]['worked'] = (int) $r['worked'];
         }
@@ -190,6 +210,7 @@ class PluginServicereportsAnalysts
         $s = $DB->escape($start);
         $e = $DB->escape($end);
         $ent = getEntitiesRestrictRequest('AND', 'glpi_tickets');
+        $priv = self::privateTaskRestrict();
         $extra = '';
         if ($techId > 0) {
             $extra .= ' AND tt.users_id_tech=' . (int) $techId;
@@ -202,7 +223,7 @@ class PluginServicereportsAnalysts
         $tot = $DB->request("SELECT COUNT(*) nb, COALESCE(SUM(tt.actiontime),0) total_time
              FROM glpi_tickettasks tt
              INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tt.tickets_id AND glpi_tickets.is_deleted=0
-             WHERE tt.users_id_tech>0 AND tt.date BETWEEN '$s' AND '$e' $ent $extra")->current();
+             WHERE tt.users_id_tech>0 AND tt.date BETWEEN '$s' AND '$e' $ent$priv $extra")->current();
 
         $page = '';
         if ($limit > 0) {
@@ -215,7 +236,7 @@ class PluginServicereportsAnalysts
                     tt.groups_id_tech, glpi_tickets.entities_id, glpi_tickets.itilcategories_id AS ticket_cat, glpi_tickets.date_creation
              FROM glpi_tickettasks tt
              INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tt.tickets_id AND glpi_tickets.is_deleted=0
-             WHERE tt.users_id_tech>0 AND tt.date BETWEEN '$s' AND '$e' $ent $extra
+             WHERE tt.users_id_tech>0 AND tt.date BETWEEN '$s' AND '$e' $ent$priv $extra
              ORDER BY tt.date DESC$page") as $r) {
             $rows[] = $r;
         }
@@ -238,6 +259,7 @@ class PluginServicereportsAnalysts
         $s = $DB->escape($start);
         $e = $DB->escape($end);
         $ent = getEntitiesRestrictRequest('AND', 'glpi_tickets');
+        $priv = self::privateTaskRestrict();
         $extra = '';
         if ($techId > 0) {
             $extra .= ' AND tt.users_id_tech=' . (int) $techId;
@@ -252,7 +274,7 @@ class PluginServicereportsAnalysts
                     glpi_tickets.entities_id
              FROM glpi_tickettasks tt
              INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tt.tickets_id AND glpi_tickets.is_deleted=0
-             WHERE tt.users_id_tech>0 AND tt.date BETWEEN '$s' AND '$e' $ent $extra") as $r) {
+             WHERE tt.users_id_tech>0 AND tt.date BETWEEN '$s' AND '$e' $ent$priv $extra") as $r) {
             $key = $r['tech'] . '-' . $r['tickets_id'];
             if (!isset($agg[$key])) {
                 $agg[$key] = ['tech' => (int) $r['tech'], 'tickets_id' => (int) $r['tickets_id'],
@@ -337,6 +359,7 @@ class PluginServicereportsAnalysts
         $s     = $DB->escape($start);
         $e     = $DB->escape($end);
         $ent   = getEntitiesRestrictRequest('AND', 'glpi_tickets');
+        $priv = self::privateTaskRestrict();
         $extra = $techId > 0 ? ' AND tt.users_id_tech=' . (int) $techId : '';
 
         $entities = self::getVisibleEntities();
@@ -346,7 +369,7 @@ class PluginServicereportsAnalysts
             "SELECT tt.users_id_tech tech, glpi_tickets.entities_id ent, COALESCE(SUM(tt.actiontime),0) secs
              FROM glpi_tickettasks tt
              INNER JOIN glpi_tickets glpi_tickets ON glpi_tickets.id=tt.tickets_id AND glpi_tickets.is_deleted=0
-             WHERE tt.users_id_tech>0 AND tt.date BETWEEN '$s' AND '$e' $ent $extra
+             WHERE tt.users_id_tech>0 AND tt.date BETWEEN '$s' AND '$e' $ent$priv $extra
              GROUP BY tt.users_id_tech, glpi_tickets.entities_id"
         ) as $r) {
             $cells[(int) $r['tech']][(int) $r['ent']] = (int) $r['secs'];

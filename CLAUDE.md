@@ -580,6 +580,9 @@ números de verdade, é preciso criar a dimensão no plugin de Serviços Gerenci
 
 ## Referências
 
+- [docs/SEGURANCA-2026-09.md](docs/SEGURANCA-2026-09.md) — **os oito achados de segurança
+  de setembro/2026**, com causa, exploração e correção de cada um. Leia antes de mexer em
+  escape de saída, direitos ou qualquer consulta que atravesse entidade.
 - [docs/recon/](docs/recon/) — modelo de dados, KPIs e telas mapeados.
 - [docs/INSTALL.md](docs/INSTALL.md) / `docs/INSTALL.pdf` — instalação via git clone.
 - `dist/*.zip` — pacotes prontos dos plugins.

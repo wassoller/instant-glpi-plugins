@@ -4,6 +4,57 @@ Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/).
 Alvo: **GLPI 10.0.x** (validado em 10.0.26). A versão para GLPI 11 tem changelog
 próprio no repositório `instant-glpi11-plugins`.
 
+## [0.5.9] — 2026-09-03 (não lançado)
+
+Segundo scan externo, agora no `servicereports`: **três achados, os três procedentes**.
+Sem mudança de schema aqui (a da 0.5.8, no `managedservices`, continua valendo).
+
+### Segurança
+- **Alta — tarefa privada exposta no relatório de Analistas.** As consultas sobre
+  `glpi_tickettasks` recortavam por entidade e ignoravam **`is_private`**: o conteúdo de
+  tarefa privada de qualquer chamado da entidade aparecia na tela e no CSV do relatório 57
+  (e nos demais que somam tarefa). É justamente onde vai a anotação interna — senha,
+  observação sobre o cliente. Agora todas as consultas passam por
+  **`PluginServicereportsAnalysts::privateTaskRestrict()`**, que replica a regra do core
+  (`TicketTask::canViewItem`): quem tem o direito *Tarefas › Ver as privadas* enxerga
+  todas, os demais só as públicas e as próprias.
+- **Alta — relatórios que listam chamado a chamado passaram a exigir "Ver todos os
+  chamados".** O plugin recortava por entidade, mas **não** pela ACL de chamado do perfil:
+  um perfil que só enxerga os próprios chamados lia os dos outros pelo relatório.
+  `front/analysts.php` e `front/financial.php` (que mostram título, requerente, autor e
+  conteúdo de tarefa) agora exigem **`Ticket::READALL`** além do direito do bloco.
+  **Isto muda quem consegue abrir esses dois relatórios** — se alguém legítimo passar a
+  receber "Acesso negado", o ajuste é dar *Ver todos os chamados* ao perfil, não remover a
+  linha. A Central de serviços **não** foi restringida: ela só mostra agregados.
+- **Alta — extrato financeiro atravessava entidades.** Em `linkedTicketIds()` a cobertura
+  de um serviço recursivo vinha de `getSonsOf('glpi_entities', …)` **sem cruzar com as
+  entidades da sessão**, e a busca por **ativo coberto** não tinha recorte de entidade
+  nenhum. Reproduzido: sessão restrita a *Standard* (sem a subárvore) via os chamados de
+  *Uniletra* e *Cliente Sem Horas*. Agora a cobertura é intersectada com
+  `$_SESSION['glpiactiveentities']` e a consulta por ativo entrou no `glpi_tickets` com
+  filtro de entidade. **Consequência visível:** o extrato de um serviço recursivo passou a
+  seguir o seletor de entidade do GLPI — escolhendo a entidade **com** subárvore os
+  números voltam a incluir as filhas (testado); escolhendo só a entidade, não.
+- **Média — fórmula maliciosa nos CSV.** Os 24 `fputcsv()` das três telas exportavam o
+  campo cru: um chamado intitulado `=HYPERLINK("http://…")` executa ao abrir no Excel.
+  Toda a saída passou a sair por **`PluginServicereportsCsv::row()`**
+  (`inc/csv.class.php`), que desescapa o HTML e prefixa `'` na célula que começa com
+  `=`, `+`, `-`, `@`, TAB ou CR — **exceto quando o valor é numérico**, para a planilha
+  continuar somando as colunas de horas e dinheiro.
+
+### Alterado
+- **Versão dos dois plugins de `0.5.8` para `0.5.9`**, mantendo os dois repositórios no
+  mesmo número. Continua valendo o passo "Atualizar" no deploy (é ele que roda a migração
+  de entidade do `managedservices`, introduzida na 0.5.8).
+
+### Testado
+GLPI 10.0.26 e GLPI 11.0.8. Tarefa privada de **outro** usuário: aparece com o direito
+*Ver as privadas*, some da tela **e do CSV** sem ele. Portão de `READALL`: com o direito,
+as três telas abrem; sem ele, Analistas e Gestão financeira negam e a Central continua
+aberta. Extrato: sessão em *Standard* sem subárvore não vê chamado das filhas; **com**
+subárvore vê os dois. CSV: a célula `=HYPERLINK(…)` sai como `'=HYPERLINK(…)` e o id do
+chamado e a duração `00:10:00` continuam intactos.
+
 ## [0.5.8] — 2026-09-03 (não lançado)
 
 Correção de segurança **multi-entidade** no `managedservices`, a partir de um scan

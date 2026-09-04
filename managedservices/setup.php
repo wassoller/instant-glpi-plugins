@@ -8,7 +8,7 @@
  * -------------------------------------------------------------------------
  */
 
-define('PLUGIN_MANAGEDSERVICES_VERSION', '0.5.8');
+define('PLUGIN_MANAGEDSERVICES_VERSION', '0.5.9');
 
 // GLPI mínimo suportado (inclusivo)
 define('PLUGIN_MANAGEDSERVICES_MIN_GLPI', '10.0.0');

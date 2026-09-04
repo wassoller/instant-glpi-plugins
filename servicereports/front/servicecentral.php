@@ -54,9 +54,8 @@ if ($tab === 'relatorios' && $report === 1 && ($_GET['export'] ?? '') === 'csv')
     header('Content-Disposition: attachment; filename="central_de_servicos_' . $start . '_' . $end . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // BOM p/ acentos no Excel
-    $dec = static fn ($v) => html_entity_decode((string) $v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $put = static function (array $line) use ($out, $dec) {
-        fputcsv($out, array_map($dec, $line), ';', '"', '');
+    $put = static function (array $line) use ($out) {
+        PluginServicereportsCsv::row($out, $line);
     };
 
     $put(['Relatório central de serviços']);
@@ -104,9 +103,8 @@ if ($tab === 'relatorios' && in_array($report, [2, 3], true) && ($_GET['export']
         . PluginServicereportsUpdatereport::slug($grain) . '_' . $start . '_' . $end . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // BOM p/ acentos no Excel
-    $dec = static fn ($v) => html_entity_decode((string) $v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $put = static function (array $line) use ($out, $dec) {
-        fputcsv($out, array_map($dec, $line), ';', '"', '');
+    $put = static function (array $line) use ($out) {
+        PluginServicereportsCsv::row($out, $line);
     };
 
     $put([$d['title']]);
@@ -167,9 +165,8 @@ if ($tab === 'relatorios' && $report === 4 && ($_GET['export'] ?? '') === 'csv')
     header('Content-Disposition: attachment; filename="chamados_por_grupo_' . $start . '_' . $end . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // BOM p/ acentos no Excel
-    $dec = static fn ($v) => html_entity_decode((string) $v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $put = static function (array $line) use ($out, $dec) {
-        fputcsv($out, array_map($dec, $line), ';', '"', '');
+    $put = static function (array $line) use ($out) {
+        PluginServicereportsCsv::row($out, $line);
     };
 
     $put([PluginServicereportsGroupreport::title()]);
@@ -198,9 +195,8 @@ if ($tab === 'relatorios' && $report === 5 && ($_GET['export'] ?? '') === 'csv')
     header('Content-Disposition: attachment; filename="chamados_por_entidade_' . $start . '_' . $end . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // BOM p/ acentos no Excel
-    $dec = static fn ($v) => html_entity_decode((string) $v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $put = static function (array $line) use ($out, $dec) {
-        fputcsv($out, array_map($dec, $line), ';', '"', '');
+    $put = static function (array $line) use ($out) {
+        PluginServicereportsCsv::row($out, $line);
     };
 
     $put([PluginServicereportsEntityreport::title()]);

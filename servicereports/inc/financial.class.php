@@ -254,6 +254,19 @@ class PluginServicereportsFinancial
             ? array_map('intval', array_values(getSonsOf('glpi_entities', $entity)))
             : [$entity];
 
+        // A cobertura do serviço (entidade + filhas, se recursivo) é cruzada com as
+        // entidades **da sessão**: um serviço recursivo numa entidade-pai enxerga as
+        // filhas, mas o relatório não pode mostrar chamado de uma filha que a pessoa
+        // não pode ver. Sem este cruzamento, um usuário de "Uniletra" via os chamados
+        // de "Cliente Sem Horas" pelo mesmo serviço-pai.
+        $visible = array_map('intval', $_SESSION['glpiactiveentities'] ?? []);
+        if (!empty($visible)) {
+            $entities = array_values(array_intersect($entities, $visible));
+        }
+        if (empty($entities)) {
+            return [];
+        }
+
         $cats = self::categoryTreeIds($catId);
         if (!empty($cats)) {
             $res = $DB->request([
@@ -266,12 +279,17 @@ class PluginServicereportsFinancial
             }
         }
 
-        $ca = self::CA_TABLE;
+        // Ativo coberto: a busca é por itemtype/items_id e **não tinha recorte de
+        // entidade nenhum** — o mesmo ativo em outra entidade trazia os chamados dela.
+        $ca   = self::CA_TABLE;
+        $inEnt = implode(',', array_map('intval', $entities));
         $res = $DB->doQuery(
             "SELECT DISTINCT it.tickets_id AS id
              FROM `glpi_items_tickets` it
              INNER JOIN `$ca` ca ON ca.itemtype = it.itemtype AND ca.items_id = it.items_id
-             WHERE ca.`" . self::MS_FK . "` = $sid AND ca.is_deleted = 0"
+             INNER JOIN `glpi_tickets` gt ON gt.id = it.tickets_id AND gt.is_deleted = 0
+             WHERE ca.`" . self::MS_FK . "` = $sid AND ca.is_deleted = 0
+                   AND gt.entities_id IN ($inEnt)"
         );
         while ($r = $DB->fetchAssoc($res)) {
             $ids[(int) $r['id']] = true;
